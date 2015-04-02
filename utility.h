@@ -19,31 +19,15 @@ class strpair;
 /*---- const variable ----*/
 
 extern const int kMaxLine;
-extern const char kStrGet[];
 
 /*---- utility function ----*/
 
 // log some debug information
 inline void http_log(const char *p) { std::clog << p; }
+inline void http_logn(const char *p) { std::clog << p << std::endl; }
 
 void http_log(const strpair &sp);
-
-// string
-inline const char *skip_space(const char *p) {
-    if (p && ' ' == *p) ++p;
-    return p;
-}
-
-// Parse the http message
-void ParseText(const char *p);
-
-const char *ParseWithTag(const char *p, char tag, strpair &sp);
-const char *ParseWithTag(const char *p, const char *tags, strpair &sp);
-const char *ParseWithCRLF(const char *p, strpair &sp);
-
-const char *ParseRequestLine(const char *p);
-const char *ParseHeader(const char *p);
-const char *ParseHeaderLine(const char *p);
+inline void http_logn(const strpair &sp) { http_log(sp); std::clog << std::endl; }
 
 /*---- utility class ----*/
 
@@ -82,13 +66,38 @@ public:
             return -1;
         } else if (length() > other.length()) {
             return 1;
+        } else {
+            return strncasecmp(beg_, other.beg_, length());
         }
-        return strncasecmp(beg_, other.beg_, length());
+    }
+
+    int compare(const char *p, size_t n) const {
+        if (length() < n) {
+            return -1;
+        } else if (length() > n) {
+            return 1;
+        } else {
+            return strncasecmp(beg_, p, n);
+        }
+    }
+
+    bool case_equal(const char *p, size_t n) const {
+        if (length() !=n) {
+            return false;
+        } else {
+            return 0 == strncasecmp(beg_, p, n);
+        }
+    }
+
+    bool case_equal_n(const char *p, size_t n) const {
+        if (length() < n) {
+            return false;
+        } else {
+            return 0 == strncasecmp(beg_, p, n);
+        }
     }
 
 private:
     const char * beg_ {NULL};
     const char * end_ {NULL};
 };
-
-

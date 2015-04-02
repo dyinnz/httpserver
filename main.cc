@@ -8,20 +8,20 @@
 #include <unistd.h>     // read() 
 
 #include "utility.h"
+#include "parse.h"
+#include "debug_test.h"
 
 using namespace std;
 
 // Read data from socket, and send the message after pasing.
 void Handle(int sockfd);
 
-void test_parse();
-
 int RunServer();
 
 int main() {
-    test_parse();
-    return 0;
-    //return RunServer();
+    //test_parse();
+    //return 0;
+    return RunServer();
 }
 
 int RunServer() {
@@ -36,7 +36,7 @@ int RunServer() {
 
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    servaddr.sin_port = htons(6666); // TODO: 6666 is a temperory number
+    servaddr.sin_port = htons(8000); // TODO: 6666 is a temperory number
 
     if (bind(listenfd, (sockaddr*)&servaddr, sizeof(servaddr)) < 0) {
         cerr << "Bind error." << endl;
@@ -55,6 +55,7 @@ int RunServer() {
             return -1;
         }
         Handle(connfd);
+        close(connfd);
     }
 
     return 0;
@@ -63,28 +64,25 @@ int RunServer() {
 void Handle(int sockfd) {
     int n {0};
     char recvline[kMaxLine + 1] {0};
+    char sendline[kMaxLine + 1] {0};
     
     while ( (n = read(sockfd, recvline, kMaxLine)) > 0) {
         http_log(recvline);
-        ParseText(recvline);
+        Request request;
+        ParseText(recvline, request);
+
+        size_t size = test_CreateResponse(sendline, sendline + kMaxLine, request);
+        write(sockfd, sendline, size);
+
+        break;
     }
 
-    http_log("Read end.\n");
+    //http_log("Read end.\n");
     
-    exit(-1);
+    //exit(-1);
 }
 
-void test_parse() {
-    ifstream fin("test_text");
-    char recvline[kMaxLine] {0};
 
-    fin.seekg(0, ifstream::end);
-    int size = fin.tellg();
-    fin.seekg(0, ifstream::beg);
-
-    fin.read(recvline, size);
-    ParseText(recvline);
-}
 
 
 
