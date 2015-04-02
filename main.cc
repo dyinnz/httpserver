@@ -8,20 +8,22 @@
 #include <unistd.h>     // read() 
 
 #include "utility.h"
+#include "handle.h"
 #include "parse.h"
 #include "debug_test.h"
+#include "handle.h"
 
 using namespace std;
 
-// Read data from socket, and send the message after pasing.
-void Handle(int sockfd);
-
 int RunServer();
+
+/*----------------------------------------------------------------------------*/
 
 int main() {
     //test_parse();
-    //return 0;
-    return RunServer();
+    test_ParseURL();
+    return 0;
+    //return RunServer();
 }
 
 int RunServer() {
@@ -54,36 +56,12 @@ int RunServer() {
             cerr << "Accept error." << endl;  
             return -1;
         }
-        Handle(connfd);
+        ServeClient(connfd);
         close(connfd);
     }
 
     return 0;
 }
-
-void Handle(int sockfd) {
-    int n {0};
-    char recvline[kMaxLine + 1] {0};
-    char sendline[kMaxLine + 1] {0};
-    
-    while ( (n = read(sockfd, recvline, kMaxLine)) > 0) {
-        http_log(recvline);
-        Request request;
-        ParseText(recvline, request);
-
-        size_t size = test_CreateResponse(sendline, sendline + kMaxLine, request);
-        write(sockfd, sendline, size);
-
-        break;
-    }
-
-    //http_log("Read end.\n");
-    
-    //exit(-1);
-}
-
-
-
 
 
 

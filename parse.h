@@ -40,15 +40,17 @@ inline const char *skip_space(const char *p) {
 }
 
 // Parse the http message
-void ParseText(const char *p, Request &request);
 
 const char *ParseWithTag(const char *p, char tag, strpair &sp);
 const char *ParseWithTag(const char *p, const char *tags, strpair &sp);
 const char *ParseWithCRLF(const char *p, strpair &sp);
 
-const char *ParseRequestLine(const char *p, Request &request);
 const char *ParseHeader(const char *p, Request &request);
 const char *ParseHeaderLine(const char *p, Request &request);
+// TODO:
+//const char *ParseFieldValue(const char *p, Request &request);
 
 Request::Error GetMethod(Request &request);
 Request::Error GetVersion(Request &request);
+
+

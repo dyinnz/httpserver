@@ -1,18 +1,6 @@
 #include "parse.h"
 #include "utility.h"
 
-void ParseText(const char *p, Request &request) {
-    assert(p);
-
-    if ( NULL == (p = ParseRequestLine(p, request)) ) {
-        return;
-    }
-    if ( NULL == (p = ParseHeader(p, request)) ) {
-        return;
-    }
-    return;
-}
-
 const char *ParseWithTag(const char *p, char tag, strpair &sp) {
     if (!p) return NULL;
 
@@ -55,36 +43,36 @@ const char *ParseWithCRLF(const char *p, strpair &sp) {
     return NULL;
 }
 
-const char *ParseRequestLine(const char *p, Request &request) {
-    if (!p) return NULL;
+const char *ParseHeader(const char *p, Request &request) {
+    assert(p);
 
+    // Parse request-line
     p = ParseWithTag(p, ' ', request.method);
     p = ParseWithTag(p, ' ', request.url);
     p = ParseWithCRLF(p, request.version);
 
     if (!p) {
         request.state = Request::kWrongRequestLine;
+        return NULL;
     }
 
-    return p;
-}
-
-const char *ParseHeader(const char *p, Request &request) {
-    if (!p) return NULL;
-
-    while (p && *p) {
+    // Parse message-header, the loop must break by return
+    while (*p) {
+        // Encounter CRLF, normaly return
         if ('\r' == *p && '\n' == *(p+1)) {
             return p+2;
         }
-        p = ParseHeaderLine(p, request);
+
+        // Unexpected text, return NULL
+        if ( NULL == (p = ParseHeaderLine(p, request)) ) {
+            request.state = Request::kWrongHeader;
+            return NULL;
+        }
     }
-    // p == NULL
-    request.state = Request::kWrongHeader;
-    return NULL;
 }
 
 const char *ParseHeaderLine(const char *p, Request &request) {
-    if (!p) return NULL;
+    assert(p);
 
     strpair key, value;
     p = ParseWithTag(p, ':', key);

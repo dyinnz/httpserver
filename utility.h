@@ -22,17 +22,14 @@ extern const int kMaxLine;
 
 /*---- utility function ----*/
 
-// log some debug information
-inline void http_log(const char *p) { std::clog << p; }
-inline void http_logn(const char *p) { std::clog << p << std::endl; }
-
-void http_log(const strpair &sp);
-inline void http_logn(const strpair &sp) { http_log(sp); std::clog << std::endl; }
-
 /*---- utility class ----*/
 
 class strpair {
 public:
+    strpair() {}
+    strpair(const char *beg, const char*end)
+        : beg_(beg), end_(end) {}
+
     bool empty() const {
         return beg_ == end_;
     }
@@ -55,6 +52,7 @@ public:
 
     void set_beg(const char *beg) {
         beg_ = beg;
+        if (end_ < beg_) end_ = beg_;
     }
     
     void set_end(const char *end) {
@@ -101,3 +99,19 @@ private:
     const char * beg_ {NULL};
     const char * end_ {NULL};
 };
+
+
+// log some debug information
+template<class T>
+inline void http_log(T value) { std::clog << value; }
+template<class T>
+inline void http_logn(T value) { std::clog << value << std::endl; }
+
+
+inline void http_log(const strpair &sp) {
+    for (const char *iter = sp.beg(); iter != sp.end(); ++iter) {
+        std::clog << *iter;
+    }
+}
+inline void http_logn(const strpair &sp) { http_log(sp); std::clog << std::endl; }
+

@@ -19,7 +19,7 @@ void test_parse() {
 
     fin.read(recvline, size);
     Request request;
-    ParseText(recvline, request);
+    ParseHeader(recvline, request);
 
     test_request(request);
 
