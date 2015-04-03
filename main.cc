@@ -8,10 +8,10 @@
 #include <unistd.h>     // read() 
 
 #include "utility.h"
-#include "handle.h"
+#include "serve_client.h"
 #include "parse.h"
+
 #include "debug_test.h"
-#include "handle.h"
 
 using namespace std;
 
@@ -21,7 +21,8 @@ int RunServer();
 
 int main() {
     //test_parse();
-    test_ParseURL();
+    //test_ParseURL();
+    test_Process();
     return 0;
     //return RunServer();
 }

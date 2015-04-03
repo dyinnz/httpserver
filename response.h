@@ -24,3 +24,18 @@ char *AppendStatusLine(char *p, int status);
 char *AppendHeader(char *p, const char *keys, const char *values);
 char *AppendEntity(char *p, const char *data, size_t size);
 //char *AppendEntityBody(char *p, const char *data);
+//
+
+class Response {
+public:
+    size_t data_size {0};
+    int status {0};
+
+    char *header {NULL};
+    char *body {NULL};
+};
+
+
+
+
+
