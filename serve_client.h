@@ -22,6 +22,8 @@ int ProcessRequest(Request &request, Response &response);
 int ProcessMethodGet(Request &request, Response &response);
 bool ParseURL(const strpair &sp, strpair &out_url);
 
+int SendResponse(int sockfd, Response &response);
+
 const char *ParseHostname(const char *p, const char *end);
 
 void test_ParseURL();

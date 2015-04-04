@@ -22,9 +22,9 @@ int RunServer();
 int main() {
     //test_parse();
     //test_ParseURL();
-    test_Process();
-    return 0;
-    //return RunServer();
+    //test_Process();
+    //return 0;
+    return RunServer();
 }
 
 int RunServer() {

@@ -23,10 +23,18 @@ void ServeClient(int sockfd) {
         http_log(recvline);
 
         Request request;
-        ParseHeader(recvline, request);
+        if (NULL == ParseHeader(recvline, request)) {
+            break;
+        }
+    
+        Response response;
+        if (Process::kSuccess != ProcessRequest(request, response)) {
+            break;
+        }
 
-        //size_t size = test_CreateResponse(sendline, sendline + kMaxLine, request);
-        //write(sockfd, sendline, size);
+        CreateResponseHeader(sendline, sendline+kMaxLine+1, response);
+
+        SendResponse(sockfd, response);
 
         break;
     }
@@ -51,6 +59,8 @@ int ProcessRequest(Request &request, Response &response) {
         default:
             return Process::kUnsupportMethod;
     }
+
+    return Process::kSuccess;
 }
 
 int ProcessMethodGet(Request &request, Response &response) {
@@ -60,15 +70,11 @@ int ProcessMethodGet(Request &request, Response &response) {
         return Process::kInvalidURL;
     }
     
-    HTTPFile file(path);
-    const char *data = file.read(&response.data_size);
-
-    if (!data) {
-        http_logn("Read file error.");
+    if (!HTTPFile(path).read(response)) {
         return Process::kFileError;
     }
 
-    cout << data << endl;
+    return Process::kSuccess;
 }
 
 bool ParseURL(const strpair &sp, strpair &out_url) {
@@ -139,17 +145,39 @@ void test_ParseURL() {
 }
 
 void test_Process() {
-    const char path[] = "index.html";
-    strpair sp_path(path, path + strlen(path));
-    HTTPFile file(sp_path);
+    HTTPFile file("test_text");
 
-    size_t size 
     const char *request_text = file.read();
 
     Request request;
-    ParseHeader(recvline, request);
+    if (NULL == ParseHeader(request_text, request)) {
+        cerr << "Parse error!" << endl;
+    }
     
+    Response response;
+    if (Process::kSuccess != ProcessRequest(request, response)) {
+        cerr << "Process request error." << endl;
+    }
+    cout << response.data_size << endl;
+
+    char sendline[kMaxLine+1] {0};
+    CreateResponseHeader(sendline, sendline+kMaxLine+1, response);
+    cout << response.header << endl;
 }
+
+int SendResponse(int sockfd, Response &response) {
+    assert(response.header);
+
+    write(sockfd, response.header, response.header_size);
+
+    if (response.body) {
+        write(sockfd, response.body, response.data_size);
+    }
+
+    return Process::kSuccess;
+}
+
+
 
 
 

@@ -9,12 +9,17 @@ const int kStatus400Len = 16;
 
 /*----------------------------------------------------------------------------*/
 
-char *CreateResponse(char *beg, const char *end, const Request &request) {
+char *CreateResponseHeader(char *beg, const char *end, Response &response) {
+    response.header = beg; 
+
     char *p { beg };
     p = AppendStatusLine(p, 200);
-    
+    if (response.body) {
+        p = AppendEntityHeader(p, response.data_size);
+    }
     p = AppendCRLF(p);
-
+    
+    response.header_size = p - beg;
     return beg;
 }
 
@@ -49,17 +54,23 @@ char *AppendEntity(char *p, const char *data, size_t size) {
     p = AppendHeader(p, "Content-Type", "text/html; charset=UTF-8");
 
     p = copy_move(p, "Content-Length: ");
-    p += snprintf(p, 16, "%d\r\n", size + 2);
+    p += snprintf(p, 16, "%d\r\n", size);
 
     p = AppendCRLF(p);
 
     memcpy(p, data, size);
 
-    p = AppendCRLF(p + size);
+    //p = AppendCRLF(p + size);
 
     return p;
 }
 
+char *AppendEntityHeader(char *p, size_t data_size) {
+    //assert(data_size);
+    p = AppendHeader(p, "Content-Type", "text/html; charset=UTF-8");
 
-
+    p = copy_move(p, "Content-Length: ");
+    p += snprintf(p, 16, "%d\r\n", data_size);
+    return p;
+}
 
