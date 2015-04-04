@@ -8,7 +8,19 @@ inline bool is_exist(const char *filename) {
     return NULL != fopen(filename, "r");
 }
 
-class Response;
+inline bool is_exist(const strpair &sp) {
+    char path[sp.length()+2] {0};
+    if ('/' == *sp.beg()) {
+        path[0] = '.';
+        strncpy(path+1, sp.beg(), sp.length());
+    } else {
+        strncpy(path, sp.beg(), sp.length());
+    }
+    return NULL != fopen(path, "r");
+}
+
+
+class Request;
 
 class HTTPFile {
 public:
@@ -52,7 +64,7 @@ public:
         return buff_;
     }
 
-    bool read(Response &response);
+    bool read(Request &request);
 
 private:
     // Don't support

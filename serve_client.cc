@@ -23,18 +23,11 @@ void ServeClient(int sockfd) {
         http_log(recvline);
 
         Request request;
-        if (NULL == ParseHeader(recvline, request)) {
-            break;
-        }
-    
-        Response response;
-        if (Process::kSuccess != ProcessRequest(request, response)) {
-            break;
-        }
+        ParseAndProcess(recvline, request);
 
-        CreateResponseHeader(sendline, sendline+kMaxLine+1, response);
+        CreateResponseHeader(sendline, sendline+kMaxLine+1, request);
 
-        SendResponse(sockfd, response);
+        SendResponse(sockfd, request);
 
         break;
     }
@@ -44,92 +37,84 @@ void ServeClient(int sockfd) {
     //exit(-1);
 }
 
-int ProcessRequest(Request &request, Response &response) {
-    assert(Request::kSuccess == request.state);
+void ParseAndProcess(const char *text, Request &request) {
+    const char *p = ParseHeader(text, request);
+    if (!p) return;
 
-    if (Request::kSuccess != GetVersion(request)) return Process::kUnsupportVersion;
-    if (Request::kSuccess != GetMethod(request)) return Process::kUnsupportMethod;
-    
-    switch (request.method_type) {
-        case Request::kGet:
-            ProcessMethodGet(request, response);
-        case Request::kHead:
-        case Request::kPost:
-            break;
-        default:
-            return Process::kUnsupportMethod;
+    GetMethod(request);
+    if (Request::kPost == request.method_type) {
+        size_t content_length= GetContentLength(request);
+        request.entity_body.set_str(p, p+content_length);
+        //http_logn(request.entity_body);
     }
 
-    return Process::kSuccess;
+    if (kSuccess != ProcessRequest(request)) return;
+    return;
 }
 
-int ProcessMethodGet(Request &request, Response &response) {
+int ProcessRequest(Request &request) {
+    assert(kSuccess == request.error_code);
+
+    if (kSuccess != GetVersion(request)) {
+        return request.error_code = kUnsupportVersion;
+    }
+    if (kSuccess != GetMethod(request)) {
+        http_logn("get method error");
+        return request.error_code = kUnsupportMethod;
+    }
+   
+    switch (request.method_type) {
+        case Request::kGet:
+            return ProcessMethodGet(request);
+
+        case Request::kHead:
+            return ProcessMethodHead(request);
+
+        case Request::kPost:
+            return kSuccess;
+        default:
+            return request.error_code = kUnsupportMethod;
+    }
+}
+
+int ProcessMethodGet(Request &request) {
+    assert(kSuccess == request.error_code);
     strpair path;
     if (!ParseURL(request.url, path)) {
         http_logn("Parser URL error.");
-        return Process::kInvalidURL;
+        return request.error_code = kInvalidURL;
     }
     
-    if (!HTTPFile(path).read(response)) {
-        return Process::kFileError;
+    if (!HTTPFile(path).read(request)) {
+        return request.error_code = kFileError;
     }
 
-    return Process::kSuccess;
+    return kSuccess;
 }
 
-bool ParseURL(const strpair &sp, strpair &out_url) {
-    const char *p = sp.beg();
-    assert(p);
-
-    out_url.empty();
-
-    if (sp.case_equal_n("http://", 7)) {
-        if (p + 7 >= sp.end()) {
-            //cerr << "out of range." << endl;
-            return false;
-        }
-
-        if ( NULL == (p = ParseHostname(p + 7, sp.end())) ) {
-            //cerr << "host name!" << endl;
-            return false;
-        }
+int ProcessMethodHead(Request &request) {
+    assert(kSuccess == request.error_code);
+    strpair path;
+    if (!ParseURL(request.url, path)) {
+        http_logn("Parser URL error.");
+        return request.error_code = kInvalidURL;
     }
-    
-    if ('/' != *p) {
-        //cerr << "no root path." << endl;
-        return false;
+    if (!is_exist(path)) {
+        return request.error_code = kFileError;
     }
-
-    out_url.set_str(p, sp.end());
-    while (p < sp.end() && *p) {
-        if ('?' == *p) {
-            out_url.set_end(p);
-        }
-        if ('#' == *p && !out_url.end()) {
-            out_url.set_end(p);
-        }
-        ++p;
-    }
-    return true;
+    return kSuccess;
 }
 
-const char* ParseHostname(const char *p, const char *end) {
-    assert(p);
-    size_t dot_cnt {0};
-    while (p < end && '/' != *p) {
-        if ('.' == *p) {
-            ++dot_cnt;
-        } else if (':' == *p) {
-            // nothing
-        } else if (!isdigit(*p)) {
-            return NULL;
-        }
-        ++p;
+int SendResponse(int sockfd, Request &request) {
+    assert(request.header);
+
+    write(sockfd, request.header, request.header_size);
+
+    if (request.body) {
+        write(sockfd, request.body, request.body_size);
     }
-    if (3 != dot_cnt) {
-        return NULL;
-    }
-    return p;
+
+    return kSuccess;
 }
 
 void test_ParseURL() {
@@ -141,7 +126,7 @@ void test_ParseURL() {
     } else {
         cout << "ParseURL OK!" << endl;
     }
-    http_logn(path);
+    //http_logn(path);
 }
 
 void test_Process() {
@@ -150,32 +135,15 @@ void test_Process() {
     const char *request_text = file.read();
 
     Request request;
-    if (NULL == ParseHeader(request_text, request)) {
-        cerr << "Parse error!" << endl;
-    }
-    
-    Response response;
-    if (Process::kSuccess != ProcessRequest(request, response)) {
-        cerr << "Process request error." << endl;
-    }
-    cout << response.data_size << endl;
+    ParseAndProcess(request_text, request);
 
     char sendline[kMaxLine+1] {0};
-    CreateResponseHeader(sendline, sendline+kMaxLine+1, response);
-    cout << response.header << endl;
+    CreateResponseHeader(sendline, sendline+kMaxLine+1, request);
+    cout << request.header << "--------" << endl;
+    cout << request.body << endl;
 }
 
-int SendResponse(int sockfd, Response &response) {
-    assert(response.header);
 
-    write(sockfd, response.header, response.header_size);
-
-    if (response.body) {
-        write(sockfd, response.body, response.data_size);
-    }
-
-    return Process::kSuccess;
-}
 
 
 

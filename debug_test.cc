@@ -27,20 +27,20 @@ void test_parse() {
 }
 
 void test_request(Request &request) {
-    if (Request::kSuccess != GetMethod(request)) {
+    if (kSuccess != GetMethod(request)) {
         cerr << "Get method error." << endl;
     }
     cout << request.method_type << endl;
 
-    if (Request::kSuccess != GetVersion(request)) {
+    if (kSuccess != GetVersion(request)) {
         cerr << "Get version error." << endl;
     }
     cout << request.major_version << " " << request.minor_version << endl;
 }
 
-size_t test_CreateResponse(char *beg, const char *end, const Request &request) {
+size_t test_CreateResponse(char *beg, const char *end, Request &request) {
     char *p { beg };
-    p = AppendStatusLine(p, 200);
+    p = AppendStatusLine(p, request);
     
     const char data[] = {
         "<html>"
@@ -64,3 +64,5 @@ void test_response(Request &request) {
     test_CreateResponse(response, response+kMaxLine, request);
     cout << response << endl;
 }
+
+

@@ -19,12 +19,14 @@ int RunServer();
 
 /*----------------------------------------------------------------------------*/
 
-int main() {
-    //test_parse();
-    //test_ParseURL();
-    //test_Process();
-    //return 0;
-    return RunServer();
+int main(int argc, char *argv[]) {
+    if (1 == argc)  {
+        //test_parse();
+        //test_ParseURL();
+        test_Process();
+    } else {
+        return RunServer();
+    }
 }
 
 int RunServer() {

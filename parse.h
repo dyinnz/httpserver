@@ -7,30 +7,40 @@
 
 class Request {
 public:
-    enum Error {
-        kSuccess, kFailed, kWrongRequestLine, kWrongHeader,
-        kWrongVersion, kUndefinedMethod,
-    };
+    int                     error_code {0};
+    int                     status {0};
 
-    Error state { kSuccess };
+    size_t                  major_version {0},
+                            minor_version {0};
 
-    strpair method,
-            url, 
-            version;
+    size_t                  body_size {0};
+    size_t                  header_size {0};
 
-    std::vector<strpair> keys;
-    std::vector<strpair> values; 
-
-    strpair entity_body;
-    
     enum MethodType {
-        kEmpty, kUndefined,
-        kGet, kPost, kPut, kHead,
+        kEmpty,
+        kUndefined,
+        kGet,
+        kPost,
+        kHead,
     };
 
-    MethodType method_type {kEmpty};
+    MethodType              method_type {kEmpty};
 
-    size_t major_version {0}, minor_version {0};
+    char                    *header {NULL};
+    char                    *body {NULL};
+
+    strpair                 method,
+                            url, 
+                            version;
+
+    strpair                 entity_body;
+
+    std::vector<strpair>    keys;
+    std::vector<strpair>    values; 
+
+    ~Request() {
+        if (body) delete [] body;
+    }
 };
 
 // string
@@ -47,10 +57,15 @@ const char *ParseWithCRLF(const char *p, strpair &sp);
 
 const char *ParseHeader(const char *p, Request &request);
 const char *ParseHeaderLine(const char *p, Request &request);
+
 // TODO:
 //const char *ParseFieldValue(const char *p, Request &request);
 
-Request::Error GetMethod(Request &request);
-Request::Error GetVersion(Request &request);
+// second parse
+bool ParseURL(const strpair &sp, strpair &out_url);
+const char *ParseHostname(const char *p, const char *end);
 
+int GetMethod(Request &request);
+int GetVersion(Request &request);
+size_t GetContentLength(Request &request);
 

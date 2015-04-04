@@ -20,6 +20,23 @@ class strpair;
 
 extern const int kMaxLine;
 
+enum HTTPError {
+    kSuccess,
+    kFailed,
+
+    // parse error
+    kWrongRequestLine,
+    kWrongHeader,
+    kWrongVersion,
+    kUndefinedMethod,
+
+    // process error
+    kUnsupportVersion,
+    kUnsupportMethod,
+    kInvalidURL,
+    kFileError,
+};
+
 /*---- utility function ----*/
 
 /*---- utility class ----*/
@@ -93,6 +110,15 @@ public:
         } else {
             return 0 == strncasecmp(beg_, p, n);
         }
+    }
+
+    size_t to_size_t() {
+        size_t num {0};
+        for (const char *p = beg_; p < end_; ++p) {
+            num *= 10;
+            num += *p - '0';
+        }
+        return num;
     }
 
 private:

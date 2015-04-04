@@ -1,6 +1,8 @@
 #include "parse.h"
 #include "utility.h"
 
+#include <algorithm>
+
 const char *ParseWithTag(const char *p, char tag, strpair &sp) {
     if (!p) return NULL;
 
@@ -52,7 +54,7 @@ const char *ParseHeader(const char *p, Request &request) {
     p = ParseWithCRLF(p, request.version);
 
     if (!p) {
-        request.state = Request::kWrongRequestLine;
+        request.error_code = kWrongRequestLine;
         return NULL;
     }
 
@@ -65,9 +67,17 @@ const char *ParseHeader(const char *p, Request &request) {
 
         // Unexpected text, return NULL
         if ( NULL == (p = ParseHeaderLine(p, request)) ) {
-            request.state = Request::kWrongHeader;
+            request.error_code = kWrongHeader;
             return NULL;
         }
+    }
+
+    // Skip the CRLF line
+    if ('\r' == *p && '\n' == *(p+1)) {
+        p += 2;
+        return p;
+    } else {
+        return NULL;
     }
 }
 
@@ -87,31 +97,87 @@ const char *ParseHeaderLine(const char *p, Request &request) {
    return p;
 }
 
-Request::Error GetMethod(Request &request) {
-    if (request.method.case_equal("GET", 3)) {
-        request.method_type = Request::kGet;
+bool ParseURL(const strpair &sp, strpair &out_url) {
+    const char *p = sp.beg();
+    assert(p);
 
-    } else if (request.method.case_equal("POST", 4)) {
-        request.method_type = Request::kPost;
+    out_url.empty();
 
-    } else if (request.method.case_equal("HEAD", 4)) {
-        request.method_type = Request::kHead;
+    if (sp.case_equal_n("http://", 7)) {
+        if (p + 7 >= sp.end()) {
+            //cerr << "out of range." << endl;
+            return false;
+        }
 
-    } else if (request.method.case_equal("PUT", 3)) {
-        request.method_type = Request::kPut;
-
-    } else {
-        request.method_type = Request::kEmpty;
-        return request.state = Request::kUndefinedMethod;
+        if ( NULL == (p = ParseHostname(p + 7, sp.end())) ) {
+            //cerr << "host name!" << endl;
+            return false;
+        }
     }
-    return Request::kSuccess;
+    
+    if ('/' != *p) {
+        //cerr << "no root path." << endl;
+        return false;
+    }
+
+    out_url.set_str(p, sp.end());
+    while (p < sp.end() && *p) {
+        if ('?' == *p) {
+            out_url.set_end(p);
+        }
+        if ('#' == *p && !out_url.end()) {
+            out_url.set_end(p);
+        }
+        ++p;
+    }
+    return true;
 }
 
-Request::Error GetVersion(Request &request) {
+const char* ParseHostname(const char *p, const char *end) {
+    assert(p);
+    size_t dot_cnt {0};
+    while (p < end && '/' != *p) {
+        if ('.' == *p) {
+            ++dot_cnt;
+        } else if (':' == *p) {
+            // nothing
+        } else if (!isdigit(*p)) {
+            return NULL;
+        }
+        ++p;
+    }
+    if (3 != dot_cnt) {
+        return NULL;
+    }
+    return p;
+}
+
+
+int GetMethod(Request &request) {
+    http_logn(__func__);
+    http_logn(request.method);
+    if (request.method.case_equal_n("GET", 3)) {
+        request.method_type = Request::kGet;
+
+    } else if (request.method.case_equal_n("POST", 4)) {
+        request.method_type = Request::kPost;
+
+    } else if (request.method.case_equal_n("HEAD", 4)) {
+        request.method_type = Request::kHead;
+
+    } else {
+        request.method_type = Request::kUndefined;
+        return request.error_code = kUndefinedMethod;
+    }
+
+    return kSuccess;
+}
+
+int GetVersion(Request &request) {
     if (!request.version.case_equal_n("HTTP/", 5)) {
         http_logn("Version Error: no \"HTTP/\".");
         http_logn(request.version);
-        return request.state = Request::kWrongVersion;
+        return request.error_code = kWrongVersion;
     }
 
     int major {0}, minor {0};
@@ -119,7 +185,7 @@ Request::Error GetVersion(Request &request) {
     const char *p = request.version.beg() + 5;
     while (p < request.version.end() && '.' != *p) {
         if (!isdigit(*p)) {
-            return request.state = Request::kWrongVersion;
+            return request.error_code = kWrongVersion;
         }
         major *= 10;
         major += *p++ - '0';
@@ -128,7 +194,7 @@ Request::Error GetVersion(Request &request) {
     ++p;
     while (p < request.version.end()) {
         if (!isdigit(*p)) {
-            return request.state = Request::kWrongVersion;
+            return request.error_code = kWrongVersion;
         }
         minor *= 10;
         minor += *p++ - '0';
@@ -137,7 +203,19 @@ Request::Error GetVersion(Request &request) {
     request.major_version = major;
     request.minor_version = minor;
 
-    return Request::kSuccess;
+    return kSuccess;
+}
+
+size_t GetContentLength(Request &request) {
+    auto f = [](const strpair &sp) {
+        return sp.case_equal("Content-Length", 14 );
+    };
+    auto iter = std::find_if(request.keys.begin(), request.keys.end(), f);
+
+    if (request.keys.end() == iter) return 0;
+    size_t index = iter - request.keys.begin();
+    
+    return request.values[index].to_size_t();
 }
 
 
