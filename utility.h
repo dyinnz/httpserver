@@ -6,28 +6,27 @@
 
 #pragma once
 
-#include <iostream>
+#include <cstdio>
+#include <cstdarg>
 #include <cassert>
-#include <cstring>
+#include <cstdlib>
 #include <strings.h>
 
 #define DEBUG
 
-// previous declaration
-class strpair;
+static const int kMaxHeader = 8096;
 
-/*---- const variable ----*/
-
-extern const int kMaxLine;
-
+// Status code
 enum HTTPError {
-    kSuccess,
+    kSuccess = 0,
+    kContinue = 0,
     kFailed,
 
     // parse error
     kWrongRequestLine,
-    kWrongHeader,
+    kWrongHeaderLine,
     kWrongVersion,
+    kWrongURL,
     kUndefinedMethod,
 
     // process error
@@ -37,22 +36,15 @@ enum HTTPError {
     kFileError,
 };
 
-/*---- utility function ----*/
-
-/*---- utility class ----*/
-
+// POD class 
 class strpair {
 public:
-    strpair() {}
-    strpair(const char *beg, const char*end)
-        : beg_(beg), end_(end) {}
-
     bool empty() const {
         return beg_ == end_;
     }
 
     size_t length() const {
-        assert(end_ - beg_);
+        assert(end_ - beg_ >= 0);
         return end_ - beg_;
     }
 
@@ -73,31 +65,12 @@ public:
     }
     
     void set_end(const char *end) {
+        assert(end_ >= beg_);
         end_ = end;
     }
 
-    int compare(const strpair &other) const {
-        if (length() < other.length()) {
-            return -1;
-        } else if (length() > other.length()) {
-            return 1;
-        } else {
-            return strncasecmp(beg_, other.beg_, length());
-        }
-    }
-
-    int compare(const char *p, size_t n) const {
-        if (length() < n) {
-            return -1;
-        } else if (length() > n) {
-            return 1;
-        } else {
-            return strncasecmp(beg_, p, n);
-        }
-    }
-
     bool case_equal(const char *p, size_t n) const {
-        if (length() !=n) {
+        if (length() != n) {
             return false;
         } else {
             return 0 == strncasecmp(beg_, p, n);
@@ -112,32 +85,67 @@ public:
         }
     }
 
-    size_t to_size_t() {
+    size_t to_size_t() const {
         size_t num {0};
         for (const char *p = beg_; p < end_; ++p) {
-            num *= 10;
-            num += *p - '0';
+            num = num*10 + (*p - '0');
         }
         return num;
     }
 
+    void debug_print() const {
+#ifdef DEBUG
+        for (const char *p = beg_; p < end_; ++p) {
+            printf("%c", *p);
+        }
+        printf("\n");
+#endif
+    }
+
 private:
-    const char * beg_ {NULL};
-    const char * end_ {NULL};
+    const char * beg_;
+    const char * end_;
 };
 
+// Output
 
-// log some debug information
-template<class T>
-inline void http_log(T value) { std::clog << value; }
-template<class T>
-inline void http_logn(T value) { std::clog << value << std::endl; }
+inline void http_error(const char *formart, ...) {
+    va_list va;
+    va_start(va, formart);
+    vfprintf(stderr, formart, va);
+    va_end(va);
+} 
 
-
-inline void http_log(const strpair &sp) {
-    for (const char *iter = sp.beg(); iter != sp.end(); ++iter) {
-        std::clog << *iter;
-    }
+// TODO: should set stream
+inline void http_log(const char *formart, ...) {
+    va_list va; 
+    va_start(va, formart);
+    vfprintf(stdout, formart, va);
+    va_end(va);
 }
-inline void http_logn(const strpair &sp) { http_log(sp); std::clog << std::endl; }
+
+#ifdef DEBUG
+
+inline void http_debug(const char *formart, ...) {
+    va_list va;
+    va_start(va, formart);
+    vprintf(formart, va);
+    va_end(va);
+}
+
+#else
+
+inline void http_debug(const char *formart, ...) {}
+
+#endif
+
+// Memory
+
+inline void* http_alloc(size_t size) {
+    return malloc(size);
+}
+
+inline void http_free(void *p) {
+    free(p);
+}
 

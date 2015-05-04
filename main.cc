@@ -1,17 +1,14 @@
 #include <cstdio>
 #include <cstring>      // bzero()
-#include <iostream>
-#include <fstream>
 
 #include <sys/socket.h> // socket()
 #include <netinet/in.h> // sockaddr_in
 #include <unistd.h>     // read() 
 
-#include "utility.h"
-#include "serve_client.h"
-#include "parse.h"
+#include "serve.h"
 
-#include "debug_test.h"
+#include <vector>
+#include <iostream>
 
 using namespace std;
 
@@ -20,21 +17,22 @@ int RunServer();
 /*----------------------------------------------------------------------------*/
 
 int main(int argc, char *argv[]) {
-    if (1 == argc)  {
-        //test_parse();
-        //test_ParseURL();
-        test_Process();
+    if (2 == argc) {
+        RunServer();
+
     } else {
-        return RunServer();
+        debug_ServeClient(0);
     }
+    return 0;
 }
 
 int RunServer() {
     int listenfd = socket(AF_INET, SOCK_STREAM, 0);
     if (listenfd < 0) {
-        cerr << "Socket error." << endl;
+        http_error("Create socket error!\n");
         return -1;
     }
+    http_log("Create socket succeed!\n");
 
     sockaddr_in servaddr;
     bzero(&servaddr, sizeof(servaddr));
@@ -44,19 +42,21 @@ int RunServer() {
     servaddr.sin_port = htons(8000); // TODO: 6666 is a temperory number
 
     if (bind(listenfd, (sockaddr*)&servaddr, sizeof(servaddr)) < 0) {
-        cerr << "Bind error." << endl;
+        http_error("Bing error!\n");
         return -1;
     }
+    http_log("Bind succeed!\n");
 
     if (listen(listenfd, 10) < 0) { // TODO: 10 is a temperory number
-        cerr << "Listen error." << endl;
+        http_error("Listen error!\n");
         return -1;
     }
+    http_log("Begin listen...\n");
 
     while (true) {
         int connfd = accept(listenfd, (sockaddr*)NULL, NULL);
         if (connfd < 0) {
-            cerr << "Accept error." << endl;  
+            http_error("Accept error!\n");
             return -1;
         }
         ServeClient(connfd);
@@ -65,6 +65,4 @@ int RunServer() {
 
     return 0;
 }
-
-
 

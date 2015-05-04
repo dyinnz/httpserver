@@ -1,71 +1,37 @@
+/*
+ * Author:  DY.HUST
+ * Date:    2015-04-15
+ * Email:   ml_143@sina.com
+ */
+
 #pragma once
 
-#include "utility.h"
-#include <vector>
+#include <cstdio>
+
+class Request;
+class strpair;
+
+// Interface
+
+// Parameter:   Request&, the request to be filled in with raw information
+// Return:      int, the status code
+int ParseHeader(const char *header_text, Request& req);
+
+// Parameter:   Request&, the request which extract from and fill in with the final information
+// Return:      int, the status code
+int ExtractInformation(Request &req);
 
 /*----------------------------------------------------------------------------*/
+// Inner function
 
-class Request {
-public:
-    int                     error_code {0};
-    int                     status {0};
+inline const char *skip_space(const char *p);
 
-    size_t                  major_version {0},
-                            minor_version {0};
+inline const char *ParseToken(const char *p, char tag, strpair &sp);
+inline const char *ParseToken(const char *p, const char *tag_s, strpair *sp);
+inline const char *ParseUntilCRLF(const char *p, strpair &sp);
 
-    size_t                  body_size {0};
-    size_t                  header_size {0};
-
-    enum MethodType {
-        kEmpty,
-        kUndefined,
-        kGet,
-        kPost,
-        kHead,
-    };
-
-    MethodType              method_type {kEmpty};
-
-    char                    *header {NULL};
-    char                    *body {NULL};
-
-    strpair                 method,
-                            url, 
-                            version;
-
-    strpair                 entity_body;
-
-    std::vector<strpair>    keys;
-    std::vector<strpair>    values; 
-
-    ~Request() {
-        if (body) delete [] body;
-    }
-};
-
-// string
-inline const char *skip_space(const char *p) {
-    if (p && ' ' == *p) ++p;
-    return p;
-}
-
-// Parse the http message
-
-const char *ParseWithTag(const char *p, char tag, strpair &sp);
-const char *ParseWithTag(const char *p, const char *tags, strpair &sp);
-const char *ParseWithCRLF(const char *p, strpair &sp);
-
-const char *ParseHeader(const char *p, Request &request);
-const char *ParseHeaderLine(const char *p, Request &request);
-
-// TODO:
-//const char *ParseFieldValue(const char *p, Request &request);
-
-// second parse
-bool ParseURL(const strpair &sp, strpair &out_url);
-const char *ParseHostname(const char *p, const char *end);
-
-int GetMethod(Request &request);
-int GetVersion(Request &request);
-size_t GetContentLength(Request &request);
+inline int ExtractPath(const strpair &sp, strpair &path);
+inline int ExtractMethod(const strpair &method);
+inline int ExtractVersion(const strpair &version, size_t *pmajor, size_t *pminor);
+size_t ExtractContentLength(Request &req);
 

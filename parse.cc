@@ -1,222 +1,222 @@
-#include "parse.h"
-#include "utility.h"
-
+#include <cassert>
+#include <cstring>
+#include <cctype>
 #include <algorithm>
 
-const char *ParseWithTag(const char *p, char tag, strpair &sp) {
+#include "parse.h"
+#include "serve.h"
+
+// Interface
+
+int ParseHeader(const char *p, Request& req) {
+    assert(p);
+
+    // Parse request-line
+    p = ParseToken(p, ' ',  req.method);
+    p = ParseToken(p, ' ',  req.url);
+    p = ParseUntilCRLF(p, req.version);
+
+    if (!p) {
+        http_debug("Parse the request line error!\n");
+        return kWrongRequestLine;
+    }
+
+    strpair key, value;
+    // Parse message-header, the loop must break by return
+    while (*p) {
+        // Encounter CRLF, normaly return
+        if ( '\r' == *p && '\n' == *(p+1) ) {
+            return kSuccess;
+        }
+        
+        // Parse the header line
+        // TODO:
+        p = ParseToken(p, ':', key);
+        p = skip_space(p);
+        p = ParseUntilCRLF(p, value);
+
+        if (p) {
+            req.keys.push_back(key);
+            req.values.push_back(key);
+
+        } else {
+            http_debug("Parse the header line error!\n");
+            // return kWrongHeaderLine;
+            return kContinue;
+        }
+    }
+
+    assert(true);       // can't reach here
+    return kFailed;
+}
+
+int ExtractInformation(Request &req) {
+    // TODO:
+    
+    if ( kSuccess != ExtractPath(req.url, req.path) ) {
+        return kWrongURL;
+    }
+
+    req.method_type = (Request::MethodType)ExtractMethod(req.method);
+
+    if ( kSuccess != ExtractVersion(req.version, &req.major_version, &req.minor_version) ) {
+        return kWrongVersion;
+    }
+
+    req.request_content_length = ExtractContentLength(req);
+
+    return kSuccess;
+}
+
+/*----------------------------------------------------------------------------*/
+// Inner function
+
+const char *skip_space(const char *p) {
+    if (!p) return p; 
+    while (' ' == *p) ++p;
+    return p;
+}
+
+const char *ParseToken(const char *p, char tag_c, strpair &sp) {
     if (!p) return NULL;
 
     sp.set_beg(p);
     while (*p) {
-        if (tag == *p) {
+        if (tag_c == *p) {
             sp.set_end(p);
             return p+1;
         }
         ++p;
     }
+    
     return NULL;
 }
 
-const char *ParseWithTag(const char *p, const char *tags, strpair &sp) {
+const char *ParseToken(const char *p, const char *tag_s, strpair &sp) {
     if (!p) return NULL;
 
     sp.set_beg(p);
-    while (p && *p) {
-        if (NULL != strchr(tags, *p)) {
+    while (*p) {
+        if ( NULL != strchr(tag_s, *p) ) {
             sp.set_end(p); 
             return p+1;
         }
         ++p;
     }
+
     return NULL;
 }
 
-const char *ParseWithCRLF(const char *p, strpair &sp) {
+const char *ParseUntilCRLF(const char *p, strpair &sp) {
     if (!p) return NULL;
 
     sp.set_beg(p);
-    while (p && *p) {
-        if ('\r' == *p && '\n' == *(p+1)) {
+    while (*p) {
+        if ( '\r' == *p && '\n' == *(p+1) ) {
             sp.set_end(p); 
             return p+2;
         }
         ++p;
     }
+
     return NULL;
 }
 
-const char *ParseHeader(const char *p, Request &request) {
+
+int ExtractPath(const strpair &url, strpair &path) {
+    const char *p = url.beg();
     assert(p);
 
-    // Parse request-line
-    p = ParseWithTag(p, ' ', request.method);
-    p = ParseWithTag(p, ' ', request.url);
-    p = ParseWithCRLF(p, request.version);
+    path.clear();
 
-    if (!p) {
-        request.error_code = kWrongRequestLine;
-        return NULL;
-    }
+    if (url.case_equal_n("http://", 7)) {
+        p += 7;
 
-    // Parse message-header, the loop must break by return
-    while (*p) {
-        // Encounter CRLF, normaly return
-        if ('\r' == *p && '\n' == *(p+1)) {
-            return p+2;
-        }
-
-        // Unexpected text, return NULL
-        if ( NULL == (p = ParseHeaderLine(p, request)) ) {
-            request.error_code = kWrongHeader;
-            return NULL;
+        if (p >= url.end()) {
+            http_debug("Out of range when extracting path from url\n");
+            return kWrongURL;
         }
     }
 
-    // Skip the CRLF line
-    if ('\r' == *p && '\n' == *(p+1)) {
-        p += 2;
-        return p;
-    } else {
-        return NULL;
-    }
-}
-
-const char *ParseHeaderLine(const char *p, Request &request) {
-    assert(p);
-
-    strpair key, value;
-    p = ParseWithTag(p, ':', key);
-    p = skip_space(p);
-    p = ParseWithCRLF(p, value);
-
-    if (p) {
-        request.keys.push_back(key);
-        request.values.push_back(value);
-    }
-
-   return p;
-}
-
-bool ParseURL(const strpair &sp, strpair &out_url) {
-    const char *p = sp.beg();
-    assert(p);
-
-    out_url.empty();
-
-    if (sp.case_equal_n("http://", 7)) {
-        if (p + 7 >= sp.end()) {
-            //cerr << "out of range." << endl;
-            return false;
-        }
-
-        if ( NULL == (p = ParseHostname(p + 7, sp.end())) ) {
-            //cerr << "host name!" << endl;
-            return false;
-        }
-    }
-    
-    if ('/' != *p) {
-        //cerr << "no root path." << endl;
-        return false;
-    }
-
-    out_url.set_str(p, sp.end());
-    while (p < sp.end() && *p) {
-        if ('?' == *p) {
-            out_url.set_end(p);
-        }
-        if ('#' == *p && !out_url.end()) {
-            out_url.set_end(p);
-        }
+    while (p < url.end () && '/' != *p) {
         ++p;
     }
-    return true;
-}
+    if (url.end() == p) {
+        http_debug("Out of range when extracting path from url\n");
+        return  kWrongURL;
+    }
 
-const char* ParseHostname(const char *p, const char *end) {
-    assert(p);
-    size_t dot_cnt {0};
-    while (p < end && '/' != *p) {
-        if ('.' == *p) {
-            ++dot_cnt;
-        } else if (':' == *p) {
-            // nothing
-        } else if (!isdigit(*p)) {
-            return NULL;
-        }
+    path.set_str(p, url.end());
+    while (p < path.end() && *p) {
+
+        if ('?' == *p) path.set_end(p);
+        if ('#' == *p) path.set_end(p);
+
         ++p;
     }
-    if (3 != dot_cnt) {
-        return NULL;
-    }
-    return p;
-}
-
-
-int GetMethod(Request &request) {
-    http_logn(__func__);
-    http_logn(request.method);
-    if (request.method.case_equal_n("GET", 3)) {
-        request.method_type = Request::kGet;
-
-    } else if (request.method.case_equal_n("POST", 4)) {
-        request.method_type = Request::kPost;
-
-    } else if (request.method.case_equal_n("HEAD", 4)) {
-        request.method_type = Request::kHead;
-
-    } else {
-        request.method_type = Request::kUndefined;
-        return request.error_code = kUndefinedMethod;
-    }
-
     return kSuccess;
 }
 
-int GetVersion(Request &request) {
-    if (!request.version.case_equal_n("HTTP/", 5)) {
-        http_logn("Version Error: no \"HTTP/\".");
-        http_logn(request.version);
-        return request.error_code = kWrongVersion;
+int ExtractMethod(const strpair &method) {
+    if (method.case_equal_n("GET", 3)) {
+        return Request::kGet;
+
+    } else if (method.case_equal_n("POST", 4)) {
+        return Request::kPost;
+
+    } else if (method.case_equal_n("HEAD", 4)) {
+        return Request::kHead;
+
+    } else {
+        http_debug("Undefined method!\n");
+        return Request::kUndefined;
+    }
+}
+
+int ExtractVersion(const strpair &version, size_t *pmajor, size_t *pminor) {
+    if ( !version.case_equal_n("HTTP/", 5) ) {
+        http_debug("Extract version error, no \"HTTP/\":\n");
+        version.debug_print();
+        return kWrongVersion;
     }
 
     int major {0}, minor {0};
 
-    const char *p = request.version.beg() + 5;
-    while (p < request.version.end() && '.' != *p) {
-        if (!isdigit(*p)) {
-            return request.error_code = kWrongVersion;
+    const char *p = version.beg() + 5;
+    while ( p < version.end() && '.' != *p ) {
+        if ( !isdigit(*p) ) {
+            http_debug("Extract version error, is not digit:%d\n", *p);
+            version.debug_print();
+            return kWrongVersion;
         }
-        major *= 10;
-        major += *p++ - '0';
+        major = major * 10 + *p++ - '0';
     }
 
     ++p;
-    while (p < request.version.end()) {
-        if (!isdigit(*p)) {
-            return request.error_code = kWrongVersion;
+    while ( p < version.end() ) {
+        if ( !isdigit(*p) ) {
+            http_debug("Extract version error, is not digit:%d\n", *p);
+            version.debug_print();
+            return kWrongVersion;
         }
-        minor *= 10;
-        minor += *p++ - '0';
+        major = major * 10 + *p++ - '0';
     }
 
-    request.major_version = major;
-    request.minor_version = minor;
+    *pmajor = major;
+    *pminor = minor;
 
     return kSuccess;
 }
 
-size_t GetContentLength(Request &request) {
-    auto f = [](const strpair &sp) {
-        return sp.case_equal("Content-Length", 14 );
-    };
-    auto iter = std::find_if(request.keys.begin(), request.keys.end(), f);
-
-    if (request.keys.end() == iter) return 0;
-    size_t index = iter - request.keys.begin();
-    
-    return request.values[index].to_size_t();
+// TODO: The code is ugly, rewrite sometimes
+size_t ExtractContentLength(Request &req) {
+    auto iter = std::find_if( req.keys.begin(), req.keys.end(),
+                            [](const strpair &sp) { return sp.case_equal("Conent-Length", 14); }
+                            );
+    if (req.keys.end() != iter) {
+        return 0;
+    } else {
+        return req.values[ iter - req.keys.begin() ].to_size_t();
+    }
 }
-
-
 
