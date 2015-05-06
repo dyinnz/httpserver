@@ -1,11 +1,13 @@
-#include <cstdio>
-#include <cstring>      // bzero()
-
 #include <sys/socket.h> // socket()
 #include <netinet/in.h> // sockaddr_in
 #include <unistd.h>     // read() 
 
 #include "serve.h"
+
+#include <cstdio>
+#include <cstring>      // bzero()
+#include <ctime>
+#include <cstdio>
 
 #include <vector>
 #include <iostream>
@@ -39,7 +41,11 @@ int RunServer() {
 
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    servaddr.sin_port = htons(8000); // TODO: 6666 is a temperory number
+
+    srand(time(NULL)); 
+    int port = rand()%5000 + 5000;
+    http_log("The random port is %d\n", port);
+    servaddr.sin_port = htons(port); // TODO: 6666 is a temperory number
 
     if (bind(listenfd, (sockaddr*)&servaddr, sizeof(servaddr)) < 0) {
         http_error("Bing error!\n");
@@ -52,7 +58,7 @@ int RunServer() {
         return -1;
     }
     http_log("Begin listen...\n");
-
+/*
     while (true) {
         int connfd = accept(listenfd, (sockaddr*)NULL, NULL);
         if (connfd < 0) {
@@ -60,6 +66,30 @@ int RunServer() {
             return -1;
         }
         ServeClient(connfd);
+        close(connfd);
+    }
+*/
+    while (true) {
+        int connfd = accept(listenfd, (sockaddr*)NULL, NULL);
+        if (connfd < 0) {
+            http_error("Accept error!\n");
+            continue;
+        }
+        
+        pid_t child = fork();
+        if (0 == child) {
+            //  Child process
+            close(listenfd);
+
+            http_log("Fork a child process to handle a new connection.\n");
+            ServeClient(connfd);
+            http_log("Child process will exit right now\n");
+
+            return 0;
+        }
+
+        http_log("Parent process goes here, close the sockfd of connection.\n");
+        // Parent process
         close(connfd);
     }
 

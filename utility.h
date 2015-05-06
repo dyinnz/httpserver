@@ -15,6 +15,7 @@
 #define DEBUG
 
 static const int kMaxHeader = 8096;
+static const int kMaxWorkProcess = 10;
 
 // Status code
 enum HTTPError {
