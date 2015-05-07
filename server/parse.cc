@@ -37,7 +37,7 @@ int ParseHeader(const char *p, Request& req) {
 
         if (p) {
             req.keys.push_back(key);
-            req.values.push_back(key);
+            req.values.push_back(value);
 
         } else {
             http_debug("Parse the header line error!\n");
@@ -211,9 +211,9 @@ int ExtractVersion(const strpair &version, size_t *pmajor, size_t *pminor) {
 // TODO: The code is ugly, rewrite sometimes
 size_t ExtractContentLength(Request &req) {
     auto iter = std::find_if( req.keys.begin(), req.keys.end(),
-                            [](const strpair &sp) { return sp.case_equal("Conent-Length", 14); }
+                            [](const strpair &sp) { return sp.case_equal("Content-Length", 14); }
                             );
-    if (req.keys.end() != iter) {
+    if (req.keys.end() == iter) {
         return 0;
     } else {
         return req.values[ iter - req.keys.begin() ].to_size_t();

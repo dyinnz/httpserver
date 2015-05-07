@@ -89,6 +89,7 @@ public:
     size_t to_size_t() const {
         size_t num {0};
         for (const char *p = beg_; p < end_; ++p) {
+            //putchar(*p);
             num = num*10 + (*p - '0');
         }
         return num;
@@ -97,9 +98,9 @@ public:
     void debug_print() const {
 #ifdef DEBUG
         for (const char *p = beg_; p < end_; ++p) {
-            printf("%c", *p);
+            putchar(*p);
         }
-        printf("\n");
+        putchar('\n');
 #endif
     }
 

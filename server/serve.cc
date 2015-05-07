@@ -27,7 +27,7 @@ void ServeClient(int sockfd) {
             break;
         }
 
-        http_debug("Receive request header:\n%s--------end--------\n",
+        http_debug("Receive request header >>>>\n%s<<<<\n",
                    request_header);
 
         Request req;
@@ -42,7 +42,8 @@ void ServeClient(int sockfd) {
 
         if ( Request::kPost == req.method_type && 0 != req.request_content_length ) {
 
-            // request_body = new char[req.request_content_length+1];
+            // TODO: There is a bug, part or all of the body has be read in the request header buff
+            /*
             request_body = static_cast<char*>( http_alloc(req.request_content_length+1) );
 
             if (req.request_content_length != ReadRequestBody(sockfd, 
@@ -51,21 +52,23 @@ void ServeClient(int sockfd) {
                 http_debug("Read body from sock error!\n");
 
             } else {
-                http_debug("Receive request body:\n%s--------end--------\n",
+                http_debug("Receive request body >>>>\n%s<<<<\n",
                            request_body);
                 req.entity_body.set_str(request_body, 
                                         request_body+req.request_content_length);
             }
+            */
         }
 
         req.header = response_header;
         ProcessRequest(req);
 
         if (kSuccess != req.error_code) {
+            http_debug("Create response header to bad request!\n");
             CreateErrorResponse(req);
         }
 
-        http_debug("Response Header:\n%s--------end--------\n", req.header);
+        http_debug("Response Header >>>>\n%s<<<<<\n", req.header);
         SendSocketData(sockfd, req.header, req.response_header_length);
         if (req.body) {
             http_debug("Begin send body:\naddress: %x length: %d\n", req.body, req.response_content_length);
@@ -92,7 +95,7 @@ int ProcessRequest(Request &req) {
                 req.error_code = kFileError;
                 return kContinue;
             }
-            http_debug("File Data:\n%s\n", req.body);
+            http_debug("File Data >>>>\n%s<<<<\n", req.body);
             break;
 
         case Request::kHead:
@@ -118,20 +121,20 @@ int ProcessRequest(Request &req) {
 
         p = copy_move(p, kResponse200, sizeof(kResponse200)-1);
         p = copy_move(p, kConnectClose, sizeof(kConnectClose)-1);
-        http_debug("%s\n", req.header);
 
         if (0 != req.response_content_length) {
             char temp_buff[30] {0};
 
             snprintf(temp_buff, 30, "Content-Length: %d\r\n",
                      req.response_content_length);
-            p = copy_move(p, temp_buff, strlen(temp_buff)-1);
+            p = copy_move(p, temp_buff, strlen(temp_buff));
         }
 
         p = copy_move(p, kCRLF, sizeof(kCRLF)-1);
-        p = copy_move(p, kCRLF, sizeof(kCRLF)-1);
 
         req.response_header_length = p - req.header;
+        //http_debug("true length: %d\ncalc length: %d\n", strlen(req.header), req.response_header_length);
+        assert( strlen(req.header) == req.response_header_length );
     }
 
     return kSuccess;
@@ -142,22 +145,27 @@ void CreateErrorResponse(Request &req) {
 
     switch (req.error_code) {
         case kFailed:
-            p = copy_move(p, kResponse500, sizeof(kResponse500));
+            p = copy_move(p, kResponse500, sizeof(kResponse500)-1);
+            break;
 
         case kWrongRequestLine:
         case kWrongVersion:
         case kUndefinedMethod:
-            p = copy_move(p, kResponse400, sizeof(kResponse400));
+            p = copy_move(p, kResponse400, sizeof(kResponse400)-1);
             break;
 
         case kUnsupportMethod:
-            p = copy_move(p, kResponse501, sizeof(kResponse501));
+            p = copy_move(p, kResponse501, sizeof(kResponse501)-1);
+            break;
 
         default:
-            p = copy_move(p, kResponse500, sizeof(kResponse500)); 
+            p = copy_move(p, kResponse500, sizeof(kResponse500)-1); 
+            break;
     }
 
-    p = copy_move(p, kCRLF, sizeof(kCRLF));
+    p = copy_move(p, kConnectClose, sizeof(kConnectClose)-1);
+    p = copy_move(p, kCRLF, sizeof(kCRLF)-1);
+    req.response_header_length = p - req.header;
 }
 
 void debug_ServeClient(int sockfd) {
@@ -165,19 +173,16 @@ void debug_ServeClient(int sockfd) {
         "GET /index.html HTTP/1.1\r\n"
         "User-Agent: curl/7.35.0\r\n"
         "Host: 127.0.0.1:8000\r\n"
-        "Accept: */*\r\n\r\n"
+        "Accept: */*\r\n"
+        "Content-Length: 10\r\n\r\n"
+        "1234567890"
     };
     char response_header[kMaxHeader+1] {0};
     char *request_body {NULL};
     size_t readn {0};
 
     while (true) {
-//        if (0 == (readn = ReadRequestHeader(sockfd, request_header, kMaxHeader+1)) ) {
-//            http_debug("Read empty header from sock!\n");
-//            break;
-//        }
-
-        http_debug("Receive request header:\n%s--------end--------\n",
+        http_debug("Receive request header >>>>\n%s<<<<\n",
                    request_header);
 
         Request req;
@@ -192,6 +197,8 @@ void debug_ServeClient(int sockfd) {
 
         if ( Request::kPost == req.method_type && 0 != req.request_content_length ) {
 
+            // TODO: There is a bug, part or all of the body has be read in the request header buff
+            /*
             // request_body = new char[req.request_content_length+1];
             request_body = static_cast<char*>( http_alloc(req.request_content_length+1) );
 
@@ -201,21 +208,28 @@ void debug_ServeClient(int sockfd) {
                 http_debug("Read body from sock error!\n");
 
             } else {
-                http_debug("Receive request body:\n%s--------end--------\n",
+                http_debug("Receive request body >>>>\n%s<<<<\n",
                            request_body);
                 req.entity_body.set_str(request_body, 
                                         request_body+req.request_content_length);
             }
+            */
         }
 
         req.header = response_header;
         ProcessRequest(req);
 
         if (kSuccess != req.error_code) {
+            http_debug("Create response header to bad request!\n");
             CreateErrorResponse(req);
         }
 
-        http_debug("Response Header:\n%s--------end--------\n", req.header);
+        http_debug("Response Header >>>>\n%s<<<<<\n", req.header);
+//        SendSocketData(sockfd, req.header, req.response_header_length);
+        if (req.body) {
+            http_debug("Begin send body:\naddress: %x length: %d\n", req.body, req.response_content_length);
+//            SendSocketData(sockfd, req.body, req.response_content_length);
+        }
         
         if (!request_body) {
             http_free(request_body);
@@ -226,5 +240,4 @@ void debug_ServeClient(int sockfd) {
 
     if (!request_body) http_free(request_body);
 }
-
 
