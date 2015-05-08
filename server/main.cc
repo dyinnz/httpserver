@@ -1,6 +1,7 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
+#include <sys/epoll.h>
 #include <netinet/in.h>
 #include <unistd.h>
 #include <pthread.h>
@@ -20,6 +21,7 @@ using namespace std;
 /*----------------------------------------------------------------------------*/
 
 int RunServer();
+void EpollTest(int listenfd, pthread_mutex_t *paccept_mutex);
 void AcceptMainLoop(int listenfd, pthread_mutex_t *paccept_mutex);
 pthread_mutex_t* CreateProcessMutex();
 
@@ -98,7 +100,7 @@ void AcceptMainLoop(int listenfd, pthread_mutex_t *paccept_mutex) {
     }
     http_log("Begin listen...\n");
 
-    while (true) {
+    for (;;) {
         // test
         int try_ret = pthread_mutex_trylock(paccept_mutex);
         if (EBUSY == try_ret) {
@@ -129,6 +131,59 @@ void AcceptMainLoop(int listenfd, pthread_mutex_t *paccept_mutex) {
         close(connfd);
         http_debug("Fininshing severing a connection. <--------\n\n");
     }   
+}
+
+void EpollTest(int listenfd, pthread_mutex_t *paccept_mutex) {
+    const int max_accept = 1000;
+    epoll_event ev, events[max_accept];
+
+    int epollfd = epoll_create(max_accept);
+    if (epollfd < 0) {
+        http_error("epoll create error!\n");
+        return;
+    }
+
+    ev.events = EPOLLIN;
+    ev.data.fd = listenfd;
+    if (epoll_ctl(epollfd, EPOLL_CTL_ADD, listenfd, &ev) < 0) {
+        http_error("Set epoll listen error!\n");
+        close(epollfd);
+        return;
+    }
+
+    for (;;) {
+        int fd_num = epoll_wait(epollfd, events, max_accept, -1);
+        if (fd_num < 0) {
+            http_error("epoll wait error!\n");
+            close(epollfd);
+            return;
+        }
+
+        for (int i = 0; i < fd_num; ++i) {
+            if (events[i].data.fd == listenfd) {
+
+                int connfd = accept(listenfd, (sockaddr*)NULL, NULL);
+                if (connfd < 0) {
+                    http_error("accept error!\n");
+                    continue;
+                }
+
+                ev.events = EPOLLIN;
+                ev.data.fd = connfd;
+                if (epoll_ctl(epollfd, EPOLL_CTL_ADD, connfd, &ev) < 0) {
+                    http_error("Set epoll listen error!\n");
+                    continue;
+                }
+
+            } else {
+                http_debug("--------> Child[%d] Begin severing a connection.\n", getpid());
+                ServeClient(events[i].data.fd);
+                close(events[i].data.fd);
+                http_debug("Fininshing severing a connection. <--------\n\n");
+            }
+        }
+    }
+
 }
 
 pthread_mutex_t* CreateProcessMutex() {
