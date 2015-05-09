@@ -21,10 +21,15 @@ using namespace std;
 /*----------------------------------------------------------------------------*/
 
 int RunServer();
-void EpollTest(int listenfd, pthread_mutex_t *paccept_mutex);
+
 void AcceptMainLoop(int listenfd, pthread_mutex_t *paccept_mutex);
+
 pthread_mutex_t* CreateProcessMutex();
+
 void AnalyzeProcessExitStatus(int status);
+
+inline bool AddToEpoll(int epollfd, int listenfd, epoll_event *pev);
+inline bool DeleteFromEpoll(int epollfd, int listenfd);
 
 pid_t children[kMaxWorkProcess] {0};
 
@@ -77,14 +82,21 @@ int RunServer() {
         return -1;
     }
 
+    if (0 != pthread_mutex_lock(paccept_mutex)) {
+        http_error("Main Test the mutex lock error. %x\n", paccept_mutex);
+    } else {
+        http_log("Main Test the mutex lock ok\n");
+        pthread_mutex_unlock(paccept_mutex);
+    }
+
     // Fork worker process
     int max_workers = 4;    // TODO: should read from configure file
     for (int i = 0; i < max_workers; ++i) {
 
         if ( 0 == (children[i] = fork()) ) {
             // Child process, return after main loop
-            // AcceptMainLoop(listenfd, paccept_mutex);
-            EpollTest(listenfd, paccept_mutex);
+            AcceptMainLoop(listenfd, paccept_mutex);
+            close(listenfd);
             return 0;
         }
     }
@@ -103,41 +115,8 @@ int RunServer() {
 }
 
 void AcceptMainLoop(int listenfd, pthread_mutex_t *paccept_mutex) {
-     for (;;) {
-        // test
-        int try_ret = pthread_mutex_trylock(paccept_mutex);
-        if (EBUSY == try_ret) {
-            http_debug("Child[%d] block here!\n", getpid());
-        } else if (0 == try_ret) {
-            http_debug("Child[%d] try to get mutex lock and then release.\n", getpid());
-            pthread_mutex_unlock(paccept_mutex);
-        } else {
-            http_error("trylock error: %d\n", try_ret);
-        }
-
-        pthread_mutex_lock(paccept_mutex);
-        http_debug("Child[%d] get mutex lock.\n", getpid());
-        int connfd = accept(listenfd, (sockaddr*)NULL, NULL);
-        int unlock_ret = pthread_mutex_unlock(paccept_mutex);
-        if (unlock_ret != 0) {
-            http_debug("the unlock return failed!\n");
-        }
-        http_debug("Child[%d] release mutex lock.\n", getpid());
-
-        if (connfd < 0) {
-            http_error("Accept error!\n");
-            continue;
-        }
-        
-        http_debug("--------> Child[%d] Begin severing a connection.\n", getpid());
-        ServeClient(connfd);
-        close(connfd);
-        http_debug("Fininshing severing a connection. <--------\n\n");
-    }   
-}
-
-void EpollTest(int listenfd, pthread_mutex_t *paccept_mutex) {
-    const int max_fd = 1000;
+    const int max_fd {1000};
+    int used_fd {0};
     epoll_event ev, events[max_fd];
 
     int epollfd = epoll_create(max_fd);
@@ -146,15 +125,40 @@ void EpollTest(int listenfd, pthread_mutex_t *paccept_mutex) {
         return;
     }
 
-    ev.events = EPOLLIN;
-    ev.data.fd = listenfd;
-    if (epoll_ctl(epollfd, EPOLL_CTL_ADD, listenfd, &ev) < 0) {
-        http_error("Set epoll listen error!\n");
-        close(epollfd);
-        return;
+    if (0 != pthread_mutex_lock(paccept_mutex)) {
+        http_error("Test the mutex lock error. %x\n", paccept_mutex);
+    } else {
+        http_log("Test the mutex lock ok\n");
+        pthread_mutex_unlock(paccept_mutex);
     }
 
     for (;;) {
+
+        // get the mutex
+        if (0 == used_fd) {
+            int lock_ret = pthread_mutex_lock(paccept_mutex);
+            if (0 == lock_ret) {
+                AddToEpoll(epollfd, listenfd, &ev);
+                pthread_mutex_unlock(paccept_mutex);
+
+            } else {
+                http_error("Get the mutex lock error. %d\n", lock_ret);
+                return;
+            }
+
+        } else {
+            int lock_ret = pthread_mutex_trylock(paccept_mutex);
+            if (0 == lock_ret) {
+                AddToEpoll(epollfd, listenfd, &ev);
+                pthread_mutex_unlock(paccept_mutex);
+
+            } else if (EBUSY != lock_ret) {
+                http_error("Try to get the mutex lock error. %d\n", lock_ret);
+                return;
+            }
+        }
+
+        // wait the events
         int fd_num = epoll_wait(epollfd, events, max_fd, -1);
         if (fd_num < 0) {
             http_error("epoll wait error!\n");
@@ -172,19 +176,23 @@ void EpollTest(int listenfd, pthread_mutex_t *paccept_mutex) {
                     http_error("accept error!\n");
                     continue;
                 }
+                DeleteFromEpoll(epollfd, listenfd);
+                http_debug("Get a connect sockfd.\n");
 
-                ev.events = EPOLLIN;
-                ev.data.fd = connfd;
-                if (epoll_ctl(epollfd, EPOLL_CTL_ADD, connfd, &ev) < 0) {
-                    http_error("Set epoll listen error!\n");
+                if (!AddToEpoll(epollfd, connfd, &ev)) {
+                    close(connfd);
                     continue;
                 }
+                used_fd++;
 
             } else {
                 http_debug("--------> Child[%d] Begin severing a connection.\n", getpid());
                 ServeClient(events[i].data.fd);
                 http_debug("Fininshing severing a connection. <--------\n\n");
-                epoll_ctl(epollfd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
+
+                DeleteFromEpoll(epollfd, events[i].data.fd);
+                used_fd--;
+
                 close(events[i].data.fd);
             }
         }
@@ -205,7 +213,7 @@ pthread_mutex_t* CreateProcessMutex() {
     // Mutex lockh  
     pthread_mutexattr_t mutex_attr;
     if (0 != pthread_mutexattr_init(&mutex_attr)) {
-        http_error("Mutex attribute init error.");
+        http_error("Mutex attribute init error.\n");
         return NULL;
     }
     if (0 != pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED)) {
@@ -216,6 +224,8 @@ pthread_mutex_t* CreateProcessMutex() {
         http_error("Init mutex error!\n");
         return NULL;
     }
+
+    http_log("Create mutex OK!\n");
     return paccept_mutex;
 }
 
@@ -234,4 +244,17 @@ void AnalyzeProcessExitStatus(int status) {
     }
 }
 
+bool AddToEpoll(int epollfd, int fd, epoll_event *pev) {
+    pev->events = EPOLLIN;
+    pev->data.fd = fd;
+    if (epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, pev) < 0) {
+        http_error("Set epoll listen error!\n");
+        close(epollfd);
+        return false;
+    }
+    return true;
+}
 
+bool DeleteFromEpoll(int epollfd, int fd) {
+    return 0 == epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, NULL);
+}
