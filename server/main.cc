@@ -82,12 +82,6 @@ int RunServer() {
         return -1;
     }
 
-    if (0 != pthread_mutex_lock(paccept_mutex)) {
-        http_error("Main Test the mutex lock error. %x\n", paccept_mutex);
-    } else {
-        http_log("Main Test the mutex lock ok\n");
-        pthread_mutex_unlock(paccept_mutex);
-    }
 
     // Fork worker process
     int max_workers = 4;    // TODO: should read from configure file
@@ -101,14 +95,14 @@ int RunServer() {
         }
     }
 
-    pthread_mutex_destroy(paccept_mutex);
-
     // Wait the child process
     int child_pid {0}, status {0};
     while ( (child_pid = waitpid(-1, &status, 0)) > 0) {
         http_log("Child process[%d] exit.\n", child_pid);
         AnalyzeProcessExitStatus(status);
     }
+
+    pthread_mutex_destroy(paccept_mutex);
 
     http_log("The server exit.");
     return 0;
@@ -123,13 +117,6 @@ void AcceptMainLoop(int listenfd, pthread_mutex_t *paccept_mutex) {
     if (epollfd < 0) {
         http_error("epoll create error!\n");
         return;
-    }
-
-    if (0 != pthread_mutex_lock(paccept_mutex)) {
-        http_error("Test the mutex lock error. %x\n", paccept_mutex);
-    } else {
-        http_log("Test the mutex lock ok\n");
-        pthread_mutex_unlock(paccept_mutex);
     }
 
     for (;;) {
