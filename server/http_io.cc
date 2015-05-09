@@ -18,7 +18,14 @@ size_t ReadRequestBody(int sockfd, char *buff, size_t read_size) {
 }
 
 size_t SendSocketData(int sockfd, const char *buff, size_t write_size) {
+    // http_debug("before write!\n");
+
+    // TODO: There is a bug, after client sent data but closed soon afterwards,
+    // kernel will sende a signal SIGPIPE[13] to process, which the process would
+    // be terminate because 'Write to pipe with no readers' without handling.
+
     size_t writen = write(sockfd, buff, write_size);
+    // http_debug("after write!\n");
     if (writen < write_size) {
         http_debug("The size of the data writen into sock is smaller than the required size!");
     }

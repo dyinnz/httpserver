@@ -24,6 +24,7 @@ int RunServer();
 void EpollTest(int listenfd, pthread_mutex_t *paccept_mutex);
 void AcceptMainLoop(int listenfd, pthread_mutex_t *paccept_mutex);
 pthread_mutex_t* CreateProcessMutex();
+void AnalyzeProcessExitStatus(int status);
 
 pid_t children[kMaxWorkProcess] {0};
 
@@ -63,6 +64,12 @@ int RunServer() {
         return -1;
     }
     http_log("Bind succeed!\n");
+
+    if (listen(listenfd, 1000) < 0) { // TODO: 1000 is a temperory number
+        http_error("Listen error!\n");
+        exit(-1);
+    }
+    http_log("Begin listen...\n");
     
     // Create mutex
     pthread_mutex_t* paccept_mutex = CreateProcessMutex();
@@ -76,7 +83,8 @@ int RunServer() {
 
         if ( 0 == (children[i] = fork()) ) {
             // Child process, return after main loop
-            AcceptMainLoop(listenfd, paccept_mutex);
+            // AcceptMainLoop(listenfd, paccept_mutex);
+            EpollTest(listenfd, paccept_mutex);
             return 0;
         }
     }
@@ -84,9 +92,10 @@ int RunServer() {
     pthread_mutex_destroy(paccept_mutex);
 
     // Wait the child process
-    int child_pid {0};
-    while ( (child_pid = waitpid(-1, NULL, 0)) > 0) {
+    int child_pid {0}, status {0};
+    while ( (child_pid = waitpid(-1, &status, 0)) > 0) {
         http_log("Child process[%d] exit.\n", child_pid);
+        AnalyzeProcessExitStatus(status);
     }
 
     http_log("The server exit.");
@@ -94,13 +103,7 @@ int RunServer() {
 }
 
 void AcceptMainLoop(int listenfd, pthread_mutex_t *paccept_mutex) {
-    if (listen(listenfd, 10) < 0) { // TODO: 10 is a temperory number
-        http_error("Listen error!\n");
-        exit(-1);
-    }
-    http_log("Begin listen...\n");
-
-    for (;;) {
+     for (;;) {
         // test
         int try_ret = pthread_mutex_trylock(paccept_mutex);
         if (EBUSY == try_ret) {
@@ -134,10 +137,10 @@ void AcceptMainLoop(int listenfd, pthread_mutex_t *paccept_mutex) {
 }
 
 void EpollTest(int listenfd, pthread_mutex_t *paccept_mutex) {
-    const int max_accept = 1000;
-    epoll_event ev, events[max_accept];
+    const int max_fd = 1000;
+    epoll_event ev, events[max_fd];
 
-    int epollfd = epoll_create(max_accept);
+    int epollfd = epoll_create(max_fd);
     if (epollfd < 0) {
         http_error("epoll create error!\n");
         return;
@@ -152,12 +155,14 @@ void EpollTest(int listenfd, pthread_mutex_t *paccept_mutex) {
     }
 
     for (;;) {
-        int fd_num = epoll_wait(epollfd, events, max_accept, -1);
+        int fd_num = epoll_wait(epollfd, events, max_fd, -1);
         if (fd_num < 0) {
             http_error("epoll wait error!\n");
             close(epollfd);
             return;
         }
+
+        http_debug("Please enter to continue! fd_num %d\n", fd_num);
 
         for (int i = 0; i < fd_num; ++i) {
             if (events[i].data.fd == listenfd) {
@@ -178,8 +183,9 @@ void EpollTest(int listenfd, pthread_mutex_t *paccept_mutex) {
             } else {
                 http_debug("--------> Child[%d] Begin severing a connection.\n", getpid());
                 ServeClient(events[i].data.fd);
-                close(events[i].data.fd);
                 http_debug("Fininshing severing a connection. <--------\n\n");
+                epoll_ctl(epollfd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
+                close(events[i].data.fd);
             }
         }
     }
@@ -196,7 +202,7 @@ pthread_mutex_t* CreateProcessMutex() {
         return NULL;
     }
 
-    // Mutex lock
+    // Mutex lockh  
     pthread_mutexattr_t mutex_attr;
     if (0 != pthread_mutexattr_init(&mutex_attr)) {
         http_error("Mutex attribute init error.");
@@ -212,3 +218,20 @@ pthread_mutex_t* CreateProcessMutex() {
     }
     return paccept_mutex;
 }
+
+void AnalyzeProcessExitStatus(int status) {
+    if (WIFEXITED(status)) {
+        http_debug("exited, status=%d\n", WEXITSTATUS(status));
+
+    } else if (WIFSIGNALED(status)) {
+        http_debug("killed by signal %d\n", WTERMSIG(status));
+
+    } else if (WIFSTOPPED(status)) {
+        http_debug("stopped by signal %d\n", WSTOPSIG(status));
+
+    } else if (WIFCONTINUED(status)) {
+        http_debug("continued\n");
+    }
+}
+
+
