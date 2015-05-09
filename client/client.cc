@@ -77,7 +77,6 @@ void build_connect(int port) {
     };
     write(sockfd, text, sizeof(text));
     
-    //sleep(1);
     char buff[4096];
     read(sockfd, buff, 4096);
 
