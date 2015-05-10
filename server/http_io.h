@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <cstdio>
+
 class strpair;
 
 size_t ReadRequestHeader(int sockfd, char *buff, size_t buff_size);

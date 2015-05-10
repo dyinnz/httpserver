@@ -10,12 +10,15 @@
 #include <cstdarg>
 #include <cassert>
 #include <cstdlib>
+#include <cstdio>
 #include <strings.h>
 
 #define DEBUG
 
 static const int kMaxHeader = 8096;
 static const int kMaxWorkProcess = 10;
+
+extern FILE *g_log_fp[8];
 
 // Status code
 enum HTTPError {
@@ -36,6 +39,19 @@ enum HTTPError {
     kInvalidURL,
     kFileError,
 };
+
+enum LogLevel {
+    kEmergency,
+    kAlert,
+    kCritical,
+    kError,
+    kWarning,
+    kNotice,
+    kInfo,
+    kDebug,
+};
+
+/*----------------------------------------------------------------------------*/
 
 // POD class 
 class strpair {
@@ -123,6 +139,14 @@ inline void http_log(const char *formart, ...) {
     va_list va; 
     va_start(va, formart);
     vfprintf(stdout, formart, va);
+    va_end(va);
+}
+
+inline void http_log(int level, const char *formart, ...) {
+    assert(0 <= level && level < 8);
+    va_list va;
+    va_start(va, formart);
+    vfprintf(g_log_fp[level], formart, va);
     va_end(va);
 }
 

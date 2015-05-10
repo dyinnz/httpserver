@@ -27,6 +27,7 @@ struct ProcessSharedMap {
 
 int RunServer();
 
+bool GlobalInit();
 ProcessSharedMap* InitProcessSharedMap();
 void AcceptMainLoop(int listenfd, ProcessSharedMap *shared);
 
@@ -40,6 +41,8 @@ pid_t children[kMaxWorkProcess] {0};
 /*----------------------------------------------------------------------------*/
 
 int main(int argc, char *argv[]) {
+    if (!GlobalInit()) return -1;
+
     if (2 == argc) {
         RunServer();
 
@@ -47,6 +50,27 @@ int main(int argc, char *argv[]) {
         debug_ServeClient(0);
     }
     return 0;
+}
+
+bool GlobalInit() {
+    
+    FILE *null_fp = fopen("/dev/null", "w");
+    if (!null_fp) {
+        printf("Open /dev/null error!\n");
+        return false;
+    }
+
+    // default configure
+    g_log_fp[kEmergency]  = stderr;
+    g_log_fp[kAlert]      = stderr;
+    g_log_fp[kCritical]   = stderr;
+    g_log_fp[kError]      = stderr;
+    g_log_fp[kWarning]    = stdout;
+    g_log_fp[kNotice]     = stdout;
+    g_log_fp[kInfo]       = null_fp;
+    g_log_fp[kDebug]      = null_fp;
+    
+    return true;
 }
 
 int RunServer() {
