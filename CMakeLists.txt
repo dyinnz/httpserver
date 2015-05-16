@@ -12,4 +12,4 @@ add_executable(clitest ${client_srcs} utility.cc)
 target_link_libraries(httpsrv pthread)
 target_link_libraries(clitest pthread)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -g")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -g -Wall")

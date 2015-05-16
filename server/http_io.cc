@@ -46,7 +46,7 @@ char *ReadFileData(const char *path, size_t *read_size) {
     char *buff = static_cast<char*>( http_alloc(*read_size) );
 
     http_debug("The size of file: %d\n", *read_size);
-    size_t readn {0};
+    // size_t readn {0};
     if (1 != fread(buff, *read_size, 1, pfile)) {
         *read_size = 0;
         http_free(buff);

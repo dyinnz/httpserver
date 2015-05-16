@@ -11,6 +11,7 @@
 #include <cassert>
 #include <cstdlib>
 #include <cstdio>
+#include <cstring>
 #include <strings.h>
 
 #define DEBUG
@@ -47,7 +48,7 @@ enum LogLevel {
     kError,
     kWarning,
     kNotice,
-    kInfo,
+    kInform,
     kDebug,
 };
 
@@ -56,6 +57,8 @@ enum LogLevel {
 // POD class 
 class strpair {
 public:
+    strpair(const char *beg = NULL, const char *end = NULL) : beg_(beg), end_(end) {}
+
     bool empty() const {
         return beg_ == end_;
     }
@@ -86,7 +89,11 @@ public:
         end_ = end;
     }
 
-    bool case_equal(const char *p, size_t n) const {
+    bool equal_n(const char *p, size_t n) const {
+        return 0 == strncmp(beg_, p, n);
+    }
+
+    bool case_equal_n(const char *p, size_t n) const {
         if (length() != n) {
             return false;
         } else {
@@ -94,7 +101,7 @@ public:
         }
     }
 
-    bool case_equal_n(const char *p, size_t n) const {
+    bool case_equal_firstn(const char *p, size_t n) const {
         if (length() < n) {
             return false;
         } else {

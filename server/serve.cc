@@ -179,7 +179,7 @@ void debug_ServeClient(int sockfd) {
     };
     char response_header[kMaxHeader+1] {0};
     char *request_body {NULL};
-    size_t readn {0};
+    // size_t readn {0};
 
     while (true) {
         http_debug("Receive request header >>>>\n%s<<<<\n",

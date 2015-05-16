@@ -6,10 +6,25 @@
 
 #pragma once
 
+#include <vector>
+#include <cstdio>
+#include "utility.h"
+
 struct GlobalConfigure {
-    int max_workers; 
-    int max_fd;
-    // FILE *log_file;
+    size_t      workers,
+                max_request_header,
+                max_response_header,
+                log_level;
+
+    strpair     log_filename[8];
+    FILE        *log_fp[8];
 };
 
-void AnalyzeConfigue(const char *filename);
+extern GlobalConfigure g_configure;
+
+bool InitConfigure();
+
+void LoadDefaultConfigure();
+void ReadConfigure(const char *filename);
+void ParseConfigureCommand(const strpair &key, const std::vector<strpair> &values);
+

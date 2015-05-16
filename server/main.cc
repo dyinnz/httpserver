@@ -15,6 +15,7 @@
 #include <iostream>
 
 #include "serve.h"
+#include "configure.h"
 
 using namespace std;
 
@@ -53,6 +54,8 @@ int main(int argc, char *argv[]) {
 }
 
 bool GlobalInit() {
+
+    ReadConfigure("configure");
     
     FILE *null_fp = fopen("/dev/null", "w");
     if (!null_fp) {
@@ -67,7 +70,7 @@ bool GlobalInit() {
     g_log_fp[kError]      = stderr;
     g_log_fp[kWarning]    = stdout;
     g_log_fp[kNotice]     = stdout;
-    g_log_fp[kInfo]       = null_fp;
+    g_log_fp[kInform]     = null_fp;
     g_log_fp[kDebug]      = null_fp;
     
     return true;

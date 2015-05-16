@@ -1,0 +1,11 @@
+
+workers 4   
+max_request_header 4096
+max_response_header 4096
+
+location / /index.html
+location /test /configure
+
+log_level 8
+
+log_debug log_debug

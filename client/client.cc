@@ -17,12 +17,12 @@ int main(int argc, char **argv) {
         return -1;
     }
     int port = atoi(argv[1]);
-
+/*
     int max_connect = 100;
     if (argc == 3) {
         max_connect = atoi(argv[2]);
     }
-
+*/
     int thread_num = 16;
     pthread_t thread_connect[thread_num];
     for (int i = 0; i < thread_num; ++i) {
@@ -46,6 +46,7 @@ void* connect_thread(void *port) {
         http_debug("times %d\r", max_connect);
         build_connect(*(int*)port);
     }
+    return NULL;
 }
     
 void build_connect(int port) {

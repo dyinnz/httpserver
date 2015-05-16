@@ -72,7 +72,7 @@ int ExtractInformation(Request &req) {
 // Inner function
 
 const char *skip_space(const char *p) {
-    if (!p) return p; 
+    if (!p) return NULL;
     while (' ' == *p) ++p;
     return p;
 }
@@ -129,7 +129,7 @@ int ExtractPath(const strpair &url, strpair &path) {
 
     path.clear();
 
-    if (url.case_equal_n("http://", 7)) {
+    if (url.case_equal_firstn("http://", 7)) {
         p += 7;
 
         if (p >= url.end()) {
@@ -158,13 +158,13 @@ int ExtractPath(const strpair &url, strpair &path) {
 }
 
 int ExtractMethod(const strpair &method) {
-    if (method.case_equal_n("GET", 3)) {
+    if (method.case_equal_firstn("GET", 3)) {
         return Request::kGet;
 
-    } else if (method.case_equal_n("POST", 4)) {
+    } else if (method.case_equal_firstn("POST", 4)) {
         return Request::kPost;
 
-    } else if (method.case_equal_n("HEAD", 4)) {
+    } else if (method.case_equal_firstn("HEAD", 4)) {
         return Request::kHead;
 
     } else {
@@ -174,7 +174,7 @@ int ExtractMethod(const strpair &method) {
 }
 
 int ExtractVersion(const strpair &version, size_t *pmajor, size_t *pminor) {
-    if ( !version.case_equal_n("HTTP/", 5) ) {
+    if ( !version.case_equal_firstn("HTTP/", 5) ) {
         http_debug("Extract version error, no \"HTTP/\":\n");
         version.debug_print();
         return kWrongVersion;
@@ -211,7 +211,7 @@ int ExtractVersion(const strpair &version, size_t *pmajor, size_t *pminor) {
 // TODO: The code is ugly, rewrite sometimes
 size_t ExtractContentLength(Request &req) {
     auto iter = std::find_if( req.keys.begin(), req.keys.end(),
-                            [](const strpair &sp) { return sp.case_equal("Content-Length", 14); }
+                            [](const strpair &sp) { return sp.case_equal_n("Content-Length", 14); }
                             );
     if (req.keys.end() == iter) {
         return 0;
