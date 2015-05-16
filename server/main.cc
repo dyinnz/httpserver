@@ -42,7 +42,10 @@ pid_t children[kMaxWorkProcess] {0};
 /*----------------------------------------------------------------------------*/
 
 int main(int argc, char *argv[]) {
-    if (!GlobalInit()) return -1;
+    //if (!GlobalInit()) return -1;
+    if (!InitConfigure()) return -1;
+
+    http_log(kDebug, "Test debug\n");
 
     if (2 == argc) {
         RunServer();
@@ -51,29 +54,6 @@ int main(int argc, char *argv[]) {
         debug_ServeClient(0);
     }
     return 0;
-}
-
-bool GlobalInit() {
-
-    ReadConfigure("configure");
-    
-    FILE *null_fp = fopen("/dev/null", "w");
-    if (!null_fp) {
-        printf("Open /dev/null error!\n");
-        return false;
-    }
-
-    // default configure
-    g_log_fp[kEmergency]  = stderr;
-    g_log_fp[kAlert]      = stderr;
-    g_log_fp[kCritical]   = stderr;
-    g_log_fp[kError]      = stderr;
-    g_log_fp[kWarning]    = stdout;
-    g_log_fp[kNotice]     = stdout;
-    g_log_fp[kInform]     = null_fp;
-    g_log_fp[kDebug]      = null_fp;
-    
-    return true;
 }
 
 int RunServer() {
@@ -295,3 +275,4 @@ bool AddToEpoll(int epollfd, int fd, epoll_event *pev) {
 bool DeleteFromEpoll(int epollfd, int fd) {
     return 0 == epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, NULL);
 }
+

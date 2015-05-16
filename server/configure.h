@@ -10,21 +10,18 @@
 #include <cstdio>
 #include "utility.h"
 
-struct GlobalConfigure {
-    size_t      workers,
-                max_request_header,
-                max_response_header,
-                log_level;
-
-    strpair     log_filename[8];
-    FILE        *log_fp[8];
-};
-
-extern GlobalConfigure g_configure;
+/******************************************************************************/
+/* Interface. Load default configure, and read user configure from "configure"
+ * file. If returning false, the program will use part of default and uesr
+ * configure. In fact, it's a good choice to exit program when returning false
+ */
 
 bool InitConfigure();
+void ReleaseConfigureResource();
 
-void LoadDefaultConfigure();
+/******************************************************************************/
+
+bool LoadDefaultConfigure();
 void ReadConfigure(const char *filename);
 void ParseConfigureCommand(const strpair &key, const std::vector<strpair> &values);
-
+bool LoadUserConfigure();

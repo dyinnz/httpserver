@@ -19,8 +19,6 @@
 static const int kMaxHeader = 8096;
 static const int kMaxWorkProcess = 10;
 
-extern FILE *g_log_fp[8];
-
 // Status code
 enum HTTPError {
     kSuccess = 0,
@@ -132,6 +130,30 @@ private:
     const char * end_;
 };
 
+/******************************************************************************/
+/* Configure struct and declare a extern global variable containing all the 
+ * configure variables
+ */
+
+struct GlobalConfigure {
+    // The number of the process which handle the request
+    size_t      workers,                    
+
+                max_request_header,
+                max_response_header,
+                log_level;
+
+    FILE        *log_fp[8];
+
+    // The filename of the log file
+    strpair     log_filename[8];
+
+    const char  *configure_text;
+};
+
+// Do not change the g_configure after call InitConfigure()
+extern GlobalConfigure g_configure;
+
 // Output
 
 inline void http_error(const char *formart, ...) {
@@ -153,7 +175,7 @@ inline void http_log(int level, const char *formart, ...) {
     assert(0 <= level && level < 8);
     va_list va;
     va_start(va, formart);
-    vfprintf(g_log_fp[level], formart, va);
+    vfprintf(g_configure.log_fp[level], formart, va);
     va_end(va);
 }
 
