@@ -168,11 +168,13 @@ bool LoadDefaultConfigure() {
     // Othe part of the program won't use the variable, just empty it
     memset(g_configure.log_filename, 0, sizeof(g_configure.log_filename));
 
+    /*
     FILE *null_fp = fopen("/dev/null", "w");
     if (!null_fp) {
         printf("Open /dev/null error!\n");
         return false;
     }
+    */
 
     g_configure.log_fp[kEmergency]  = stderr;
     g_configure.log_fp[kAlert]      = stderr;
@@ -180,8 +182,8 @@ bool LoadDefaultConfigure() {
     g_configure.log_fp[kError]      = stderr;
     g_configure.log_fp[kWarning]    = stdout;
     g_configure.log_fp[kNotice]     = stdout;
-    g_configure.log_fp[kInform]     = null_fp;
-    g_configure.log_fp[kDebug]      = null_fp;
+    g_configure.log_fp[kInform]     = stdout;
+    g_configure.log_fp[kDebug]      = stdout;
 
     return true;
 }
@@ -191,7 +193,7 @@ bool LoadDefaultConfigure() {
 
 bool LoadUserConfigure() {
 
-    fclose(g_configure.log_fp[kInform]);
+    // fclose(g_configure.log_fp[kInform]);
 
     // load log file
     for (int i = 0; i < 8; ++i) if (!g_configure.log_filename[i].empty()) {

@@ -37,15 +37,12 @@ inline bool DeleteFromEpoll(int epollfd, int listenfd);
 
 void AnalyzeProcessExitStatus(int status);
 
-pid_t children[kMaxWorkProcess] {0};
 
 /*----------------------------------------------------------------------------*/
 
 int main(int argc, char *argv[]) {
     //if (!GlobalInit()) return -1;
     if (!InitConfigure()) return -1;
-
-    http_log(kDebug, "Test debug\n");
 
     if (2 == argc) {
         RunServer();
@@ -59,10 +56,10 @@ int main(int argc, char *argv[]) {
 int RunServer() {
     int listenfd = socket(AF_INET, SOCK_STREAM, 0);
     if (listenfd < 0) {
-        http_error("Create socket error!\n");
+        http_log(kError, "Create socket error!\n");
         return -1;
     }
-    http_log("Create socket succeed!\n");
+    http_log(kNotice, "Create socket succeed!\n");
 
     sockaddr_in servaddr;
     bzero(&servaddr, sizeof(servaddr));
@@ -72,20 +69,20 @@ int RunServer() {
 
     srand(time(NULL)); 
     int port = rand()%5000 + 5000;
-    http_log("The random port is %d\n", port);
+    http_log(kNotice, "The random port is %d\n", port);
     servaddr.sin_port = htons(port); // TODO: 6666 is a temperory number
 
     if (bind(listenfd, (sockaddr*)&servaddr, sizeof(servaddr)) < 0) {
-        http_error("Bing error!\n");
+        http_log(kError, "Bing error!\n");
         return -1;
     }
-    http_log("Bind succeed!\n");
+    http_log(kNotice, "Bind succeed!\n");
 
     if (listen(listenfd, 1000) < 0) { // TODO: 1000 is a temperory number
-        http_error("Listen error!\n");
+        http_log(kError, "Listen error!\n");
         exit(-1);
     }
-    http_log("Begin listen...\n");
+    http_log(kNotice, "Begin listen...\n");
     
     // Create mutex
     ProcessSharedMap *shared = InitProcessSharedMap();
@@ -94,8 +91,8 @@ int RunServer() {
     }
 
     // Fork worker process
-    int max_workers = 4;    // TODO: should read from configure file
-    for (int i = 0; i < max_workers; ++i) {
+    pid_t children[g_configure.workers] {0};
+    for (size_t i = 0; i < g_configure.workers; ++i) {
 
         if ( 0 == (children[i] = fork()) ) {
             // Child process, return after main loop
@@ -108,13 +105,13 @@ int RunServer() {
     // Wait the child process
     int child_pid {0}, status {0};
     while ( (child_pid = waitpid(-1, &status, 0)) > 0) {
-        http_log("Child process[%d] exit.\n", child_pid);
+        http_log(kWarning, "Child process[%d] exit.\n", child_pid);
         AnalyzeProcessExitStatus(status);
     }
 
     pthread_mutex_destroy(&shared->accept_mutex);
 
-    http_log("The server exit.\n");
+    http_log(kError, "The server exit.\n");
     return 0;
 }
 
@@ -127,12 +124,12 @@ void AcceptMainLoop(int listenfd, ProcessSharedMap *shared) {
 
     int epollfd = epoll_create(max_fd);
     if (epollfd < 0) {
-        http_error("epoll create error!\n");
+        http_log(kError, "epoll create error!\n");
         return;
     }
 
     for (;;) {
-        http_log("Begin main loop\n");
+        http_log(kInform, "Begin main loop\n");
 
         // only can one child listen socket
         int lock_ret = pthread_mutex_trylock(paccept_mutex);
@@ -144,22 +141,22 @@ void AcceptMainLoop(int listenfd, ProcessSharedMap *shared) {
                 shared->is_listened = true; 
                 AddToEpoll(epollfd, listenfd, &ev);
 
-                http_log("Child[%d] listen socket.\n", getpid());
+                http_log(kInform, "Child[%d] listen socket.\n", getpid());
             }
 
             if (0 != pthread_mutex_unlock(paccept_mutex)) {
-                http_error("Unlock mutex error.\n"); 
+                http_log(kInform, "Unlock mutex error.\n"); 
             }
                 
         } else {
-            http_error("Try lock mutex error.\n"); 
+            http_log(kError, "Try lock mutex error.\n"); 
             return;
         }
 
         // wait the events
         int fd_num = epoll_wait(epollfd, events, max_fd, 10000);
         if (fd_num < 0) {
-            http_error("epoll wait error!\n");
+            http_log(kError, "epoll wait error!\n");
             close(epollfd);
             return;
         }
@@ -171,7 +168,7 @@ void AcceptMainLoop(int listenfd, ProcessSharedMap *shared) {
                 int connfd = accept(listenfd, (sockaddr*)NULL, NULL);
 
                 if (connfd < 0) {
-                    http_error("accept error!\n");
+                    http_log(kError, "accept error!\n");
                     continue;
                 }
                 http_debug("Get a connect sockfd.\n");
@@ -182,14 +179,14 @@ void AcceptMainLoop(int listenfd, ProcessSharedMap *shared) {
                 } else if (0 == lock_ret) {
                     DeleteFromEpoll(epollfd, listenfd);
                     shared->is_listened = false;
-                    http_log("Child[%d] ends listening socket.\n", getpid());
+                    http_log(kDebug, "Child[%d] ends listening socket.\n", getpid());
 
                     if (0 != pthread_mutex_unlock(paccept_mutex)) {
-                        http_error("Unlock mutex error.\n"); 
+                        http_log(kError, "Unlock mutex error.\n"); 
                     }
 
                 } else {
-                    http_error("Try lock mutex error.\n"); 
+                    http_log(kError, "Try lock mutex error.\n"); 
                     return;
                 }
 
@@ -222,7 +219,7 @@ ProcessSharedMap* InitProcessSharedMap() {
                                         PROT_READ | PROT_WRITE,
                                         MAP_ANON | MAP_SHARED, -1, 0);
     if (MAP_FAILED == shared) {
-        http_error("Memory map error!\n");
+        http_log(kError, "Memory map error!\n");
         return NULL;
     }
     bzero(shared, sizeof(ProcessSharedMap));
@@ -230,19 +227,19 @@ ProcessSharedMap* InitProcessSharedMap() {
     // Mutex lockh  
     pthread_mutexattr_t mutex_attr;
     if (0 != pthread_mutexattr_init(&mutex_attr)) {
-        http_error("Mutex attribute init error.\n");
+        http_log(kError, "Mutex attribute init error.\n");
         return NULL;
     }
     if (0 != pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED)) {
-        http_error("Set mutex process shared error!\n");
+        http_log(kError, "Set mutex process shared error!\n");
         return NULL;
     }
     if (0 != pthread_mutex_init(&shared->accept_mutex, &mutex_attr)) {
-        http_error("Init mutex error!\n");
+        http_log(kError, "Init mutex error!\n");
         return NULL;
     }
 
-    http_log("Create mutex OK!\n");
+    http_log(kInform, "Create mutex OK!\n");
     return shared;
 }
 
@@ -265,7 +262,7 @@ bool AddToEpoll(int epollfd, int fd, epoll_event *pev) {
     pev->events = EPOLLIN;
     pev->data.fd = fd;
     if (epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, pev) < 0) {
-        http_error("Set epoll listen error!\n");
+        http_log(kError, "Set epoll listen error!\n");
         close(epollfd);
         return false;
     }

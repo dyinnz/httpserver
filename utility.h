@@ -16,8 +16,19 @@
 
 #define DEBUG
 
-static const int kMaxHeader = 8096;
-static const int kMaxWorkProcess = 10;
+/******************************************************************************/
+/* Constant */
+
+static const char *kLogTag[8] = {
+    "Emergency: ",
+    "Alert: ",
+    "Critical: ",
+    "Error: ",
+    "Warning: ",
+    "Notice: ",
+    "Inform: ",
+    "Debug: ",
+};
 
 // Status code
 enum HTTPError {
@@ -50,9 +61,9 @@ enum LogLevel {
     kDebug,
 };
 
-/*----------------------------------------------------------------------------*/
+/******************************************************************************/
+/* Structure stores the begin and end of a string */
 
-// POD class 
 class strpair {
 public:
     strpair(const char *beg = NULL, const char *end = NULL) : beg_(beg), end_(end) {}
@@ -147,36 +158,25 @@ struct GlobalConfigure {
 
     // The filename of the log file
     strpair     log_filename[8];
-
+    
     const char  *configure_text;
 };
 
 // Do not change the g_configure after call InitConfigure()
 extern GlobalConfigure g_configure;
 
-// Output
+/******************************************************************************/
+/* Log and debug output */
 
-inline void http_error(const char *formart, ...) {
-    va_list va;
-    va_start(va, formart);
-    vfprintf(stderr, formart, va);
-    va_end(va);
-} 
-
-// TODO: should set stream
-inline void http_log(const char *formart, ...) {
-    va_list va; 
-    va_start(va, formart);
-    vfprintf(stdout, formart, va);
-    va_end(va);
-}
-
-inline void http_log(int level, const char *formart, ...) {
-    assert(0 <= level && level < 8);
-    va_list va;
-    va_start(va, formart);
-    vfprintf(g_configure.log_fp[level], formart, va);
-    va_end(va);
+inline void http_log(size_t level, const char *formart, ...) {
+    assert(level < 8);
+    if (level <= g_configure.log_level) {
+        va_list va;
+        va_start(va, formart);
+        fprintf(g_configure.log_fp[level], kLogTag[level]);
+        vfprintf(g_configure.log_fp[level], formart, va);
+        va_end(va);
+    }
 }
 
 #ifdef DEBUG
@@ -194,7 +194,8 @@ inline void http_debug(const char *formart, ...) {}
 
 #endif
 
-// Memory
+/******************************************************************************/
+/* Memory allocation */
 
 inline void* http_alloc(size_t size) {
     return malloc(size);
@@ -204,3 +205,5 @@ inline void http_free(void *p) {
     free(p);
 }
 
+/* End */
+/******************************************************************************/

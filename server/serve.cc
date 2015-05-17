@@ -16,13 +16,13 @@ static const char kConnectClose[] = "Connection: close\r\n";
 /*----------------------------------------------------------------------------*/
 
 void ServeClient(int sockfd) {
-    char request_header[kMaxHeader+1] {0};
-    char response_header[kMaxHeader+1] {0};
+    char request_header[g_configure.max_request_header+1] {0};
+    char response_header[g_configure.max_response_header+1] {0};
     char *request_body {NULL};
     size_t readn {0};
 
     while (true) {
-        if (0 == (readn = ReadRequestHeader(sockfd, request_header, kMaxHeader+1)) ) {
+        if (0 == (readn = ReadRequestHeader(sockfd, request_header, g_configure.max_request_header+1)) ) {
             http_debug("Read empty header from sock!\n");
             break;
         }
@@ -169,7 +169,7 @@ void CreateErrorResponse(Request &req) {
 }
 
 void debug_ServeClient(int sockfd) {
-    char request_header[kMaxHeader+1] = {
+    char request_header[g_configure.max_request_header+1] = {
         "GET /index.html HTTP/1.1\r\n"
         "User-Agent: curl/7.35.0\r\n"
         "Host: 127.0.0.1:8000\r\n"
@@ -177,7 +177,7 @@ void debug_ServeClient(int sockfd) {
         "Content-Length: 10\r\n\r\n"
         "1234567890"
     };
-    char response_header[kMaxHeader+1] {0};
+    char response_header[g_configure.max_response_header+1] {0};
     char *request_body {NULL};
     // size_t readn {0};
 
