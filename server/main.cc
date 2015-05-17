@@ -16,6 +16,7 @@
 
 #include "serve.h"
 #include "configure.h"
+#include "memory_pool.h"
 
 using namespace std;
 
@@ -37,16 +38,14 @@ inline bool DeleteFromEpoll(int epollfd, int listenfd);
 
 void AnalyzeProcessExitStatus(int status);
 
-
 /*----------------------------------------------------------------------------*/
 
 int main(int argc, char *argv[]) {
-    //if (!GlobalInit()) return -1;
     if (!InitConfigure()) return -1;
+    TestMemoryPool();
 
     if (2 == argc) {
         RunServer();
-
     } else {
         debug_ServeClient(0);
     }
