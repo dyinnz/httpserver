@@ -48,6 +48,13 @@ public:
 };
 
 /******************************************************************************/
+
+template <class T> 
+T* MemoryPool::Allocate(size_t n) {
+    return (T*)Allocate(sizeof(T) * n);
+}
+
+/******************************************************************************/
 /* Memory allocate wrap function */
 template <class T> inline
 T *malloc_wrap(size_t size) {

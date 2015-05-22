@@ -1,6 +1,7 @@
 #include "configure.h"
 #include "http_io.h"
 #include "utility.h"
+#include "memory_pool.h"
 
 #include <unordered_map>
 
@@ -8,15 +9,17 @@
 /* Global variable */
 
 GlobalConfigure g_configure;
+static const int kPoolDefaultSize = 4096;
 
 /******************************************************************************/
 
 bool InitConfigure() {
     if (!LoadDefaultConfigure()) return false;
 
-    ReadConfigure("configure");
+    MemoryPool pool(kPoolDefaultSize);
+    ReadConfigure("configure", pool);
 
-    if (!LoadUserConfigure()) return false;
+    ReleaseConfigureResource();
 
     return true;
 }
@@ -24,11 +27,11 @@ bool InitConfigure() {
 /******************************************************************************/
 /* Read text from configure file and split it into keys and values */
 
-void ReadConfigure(const char *filename) {
+void ReadConfigure(const char *filename, MemoryPool &pool) {
 
     // Read text from text
     size_t  text_size = 0;
-    if (! (g_configure.configure_text = ReadFileData(filename, &text_size)) ) {
+    if (! (g_configure.configure_text = ReadFileData(filename, &text_size, pool)) ) {
         fprintf(stderr, "Read configure error!\n");
         return;
     }
@@ -98,7 +101,7 @@ void ReadConfigure(const char *filename) {
 /******************************************************************************/
 /* Dirty code... But it's easy to implement. */
 
-void ParseConfigureCommand(const strpair &key, const std::vector<strpair> &values) {
+bool ParseConfigureCommand(const strpair &key, const std::vector<strpair> &values) {
     assert(values.size());
 
     // The number of values must be one, and the one must be a number, but
@@ -116,33 +119,35 @@ void ParseConfigureCommand(const strpair &key, const std::vector<strpair> &value
     } else if (key.equal_n("log_level", sizeof("log_level")-1)) {
         g_configure.log_level = values[0].to_size_t();
 
+    } else if (key.equal_n("memory_pool_size", sizeof("memory_pool_size")-1)) {
+        g_configure.memory_pool_size = values[0].to_size_t();
     }
 
     // The values are string, and the number may be no more than one. Because
     // some configure needs.
     else if (key.equal_n("log_emergency", sizeof("log_emergency")-1)) {
-        g_configure.log_filename[kEmergency] = values[0];
+        LoadLogFile(&g_configure.log_fp[kEmergency], values[0]);
 
     } else if (key.equal_n("log_alert", sizeof("log_alert")-1)) {
-        g_configure.log_filename[kAlert] = values[0];
+        LoadLogFile(&g_configure.log_fp[kAlert], values[0]);
 
     } else if (key.equal_n("log_critical", sizeof("log_critical")-1)) {
-        g_configure.log_filename[kCritical] = values[0];
+        LoadLogFile(&g_configure.log_fp[kCritical], values[0]);
 
     } else if (key.equal_n("log_error", sizeof("log_error")-1)) {
-        g_configure.log_filename[kError] = values[0];
+        LoadLogFile(&g_configure.log_fp[kError], values[0]);
 
     } else if (key.equal_n("log_warning", sizeof("log_warning")-1)) {
-        g_configure.log_filename[kWarning] = values[0];
+        LoadLogFile(&g_configure.log_fp[kWarning], values[0]);
 
     } else if (key.equal_n("log_notice", sizeof("log_notice")-1)) {
-        g_configure.log_filename[kNotice] = values[0];
+        LoadLogFile(&g_configure.log_fp[kNotice], values[0]);
 
     } else if (key.equal_n("log_inform", sizeof("log_inform")-1)) {
-        g_configure.log_filename[kInform] = values[0];
+        LoadLogFile(&g_configure.log_fp[kInform], values[0]);
 
     } else if (key.equal_n("log_debug", sizeof("log_debug")-1)) {
-        g_configure.log_filename[kDebug] = values[0];
+        LoadLogFile(&g_configure.log_fp[kDebug], values[0]);
 
     } else if (key.equal_n("location", sizeof("location")-1)) {
         // TODO
@@ -152,8 +157,11 @@ void ParseConfigureCommand(const strpair &key, const std::vector<strpair> &value
     // Have not the word, so the user must enters wrong configure word
     else {
         fprintf(stderr, "Unknown configure command!\n");
+        return false;
     }
-};
+
+    return true;
+}
 
 
 /******************************************************************************/
@@ -164,9 +172,7 @@ bool LoadDefaultConfigure() {
     g_configure.max_request_header  = 4096;     // 4k
     g_configure.max_response_header = 4096;
     g_configure.log_level           = kNotice;
-
-    // Othe part of the program won't use the variable, just empty it
-    memset(g_configure.log_filename, 0, sizeof(g_configure.log_filename));
+    g_configure.memory_pool_size    = 4096;
 
     /*
     FILE *null_fp = fopen("/dev/null", "w");
@@ -189,45 +195,25 @@ bool LoadDefaultConfigure() {
 }
 
 /******************************************************************************/
-/* Some configuration won't be effective at once, which need further handle */
-
-bool LoadUserConfigure() {
-
-    // fclose(g_configure.log_fp[kInform]);
-
-    // load log file
-    for (int i = 0; i < 8; ++i) if (!g_configure.log_filename[i].empty()) {
-
-        char temp = *g_configure.log_filename[i].end();
-        *(char*)g_configure.log_filename[i].end() = '\0';
-
-        FILE *fp = fopen(g_configure.log_filename[i].beg(), "a");
-        if (NULL == fp) {
-            fprintf(stderr, "Open log file error!");
-            return false;
-
-        } else {
-            g_configure.log_fp[i] = fp;
-        }
-
-        *(char*)g_configure.log_filename[i].end() = temp;
-    }
-
-    return true;
-}
-
-/******************************************************************************/
 /* Release memory and file point  */
 
 void ReleaseConfigureResource() {
-
-    for (int i = 0; i < 8; ++i) {
-        if (stderr != g_configure.log_fp[i] && stdout != g_configure.log_fp[i]) {
-            fclose(g_configure.log_fp[i]); 
-        }
-    }
-    free((void*)g_configure.configure_text);
+    // 
 }
 
 /******************************************************************************/
 
+void LoadLogFile(FILE **ppf, const strpair &filename) {
+    char temp = *filename.end();
+    *(char*)filename.end() = '\0';
+
+    *ppf = fopen(filename.beg(), "a");
+
+    *(char*)filename.end() = temp;
+
+    if (NULL == *ppf) {
+        fprintf(stderr, "Open log file error!");
+    }
+}
+
+/******************************************************************************/

@@ -8,7 +8,9 @@
 
 #include <vector>
 #include <cstdio>
-#include "utility.h"
+
+class strpair;
+class MemoryPool;
 
 /******************************************************************************/
 /* Interface. Load default configure, and read user configure from "configure"
@@ -22,6 +24,7 @@ void ReleaseConfigureResource();
 /******************************************************************************/
 
 bool LoadDefaultConfigure();
-void ReadConfigure(const char *filename);
-void ParseConfigureCommand(const strpair &key, const std::vector<strpair> &values);
-bool LoadUserConfigure();
+void ReadConfigure(const char *filename, MemoryPool &pool);
+bool ParseConfigureCommand(const strpair &key, const std::vector<strpair> &values);
+
+void LoadLogFile(FILE **ppf, const strpair &key);

@@ -1,6 +1,7 @@
 #include "serve.h"
 #include "http_io.h"
 #include "parse.h"
+#include "memory_pool.h"
 
 #include <iostream>
 using namespace std;
@@ -18,8 +19,9 @@ static const char kConnectClose[] = "Connection: close\r\n";
 void ServeClient(int sockfd) {
     char request_header[g_configure.max_request_header+1] {0};
     char response_header[g_configure.max_response_header+1] {0};
-    char *request_body {NULL};
+    // char *request_body {NULL};
     size_t readn {0};
+    MemoryPool pool(g_configure.memory_pool_size);
 
     while (true) {
         if (0 == (readn = ReadRequestHeader(sockfd, request_header, g_configure.max_request_header+1)) ) {
@@ -61,7 +63,7 @@ void ServeClient(int sockfd) {
         }
 
         req.header = response_header;
-        ProcessRequest(req);
+        ProcessRequest(req, pool);
 
         if (kSuccess != req.error_code) {
             http_debug("Create response header to bad request!\n");
@@ -74,21 +76,15 @@ void ServeClient(int sockfd) {
             http_debug("Begin send body:\naddress: %x length: %d\n", req.body, req.response_content_length);
             SendSocketData(sockfd, req.body, req.response_content_length);
         }
-        
-        if (!request_body) {
-            http_free(request_body);
-            request_body = NULL;
-        }
+       
         break;
     }
-
-    if (!request_body) http_free(request_body);
 }
 
-int ProcessRequest(Request &req) { 
+int ProcessRequest(Request &req, MemoryPool &pool) {
     switch (req.method_type) {
         case Request::kGet:
-            req.body = ReadFileData(req.path, &req.response_content_length);
+            req.body = ReadFileData(req.path, &req.response_content_length, pool);
             if (!req.body) {
                 http_debug("Read data from file error!\n");
                 req.path.debug_print();
@@ -178,8 +174,9 @@ void debug_ServeClient(int sockfd) {
         "1234567890"
     };
     char response_header[g_configure.max_response_header+1] {0};
-    char *request_body {NULL};
+    // char *request_body {NULL};
     // size_t readn {0};
+    MemoryPool pool(g_configure.memory_pool_size);
 
     while (true) {
         http_debug("Receive request header >>>>\n%s<<<<\n",
@@ -217,7 +214,7 @@ void debug_ServeClient(int sockfd) {
         }
 
         req.header = response_header;
-        ProcessRequest(req);
+        ProcessRequest(req, pool);
 
         if (kSuccess != req.error_code) {
             http_debug("Create response header to bad request!\n");
@@ -230,14 +227,9 @@ void debug_ServeClient(int sockfd) {
             http_debug("Begin send body:\naddress: %x length: %d\n", req.body, req.response_content_length);
 //            SendSocketData(sockfd, req.body, req.response_content_length);
         }
-        
-        if (!request_body) {
-            http_free(request_body);
-            request_body = NULL;
-        }
         break;
     }
-
-    if (!request_body) http_free(request_body);
+    
+    http_debug("test\n");
 }
 

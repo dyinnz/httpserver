@@ -11,6 +11,8 @@
 
 #include "utility.h"
 
+class MemoryPool;
+
 class Request {
 public:
     int                     error_code {0};
@@ -50,7 +52,7 @@ public:
 void ServeClient(int sockfd);
 
 // Return status code
-int ProcessRequest(Request &req);
+int ProcessRequest(Request &req, MemoryPool &pool);
 
 void CreateErrorResponse(Request &req);
 

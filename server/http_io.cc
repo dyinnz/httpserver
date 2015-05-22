@@ -3,6 +3,7 @@
 
 #include "http_io.h"
 #include "utility.h"
+#include "memory_pool.h"
 
 size_t ReadRequestHeader(int sockfd, char *buff, size_t buff_size) {
     // TODO:
@@ -32,7 +33,7 @@ size_t SendSocketData(int sockfd, const char *buff, size_t write_size) {
     return writen;
 }
 
-char *ReadFileData(const char *path, size_t *read_size) {
+char *ReadFileData(const char *path, size_t *read_size, MemoryPool &pool) {
     FILE *pfile = fopen(path, "r");
     if (!pfile) {
         http_debug("Open file error\n");
@@ -43,28 +44,27 @@ char *ReadFileData(const char *path, size_t *read_size) {
     *read_size = ftell(pfile);
     rewind(pfile);
 
-    char *buff = static_cast<char*>( http_alloc(*read_size) );
+    char *buff = pool.Allocate<char>(*read_size);
 
     http_debug("The size of file: %d\n", *read_size);
-    // size_t readn {0};
+
     if (1 != fread(buff, *read_size, 1, pfile)) {
         *read_size = 0;
-        http_free(buff);
-        fclose(pfile);
-        return NULL;
-
-    } else {
-        fclose(pfile);
-        return buff;
+        buff = NULL;
     }
+
+    fclose(pfile);
+    return buff;
 }
 
-char *ReadFileData(const strpair &sp_path, size_t *read_size) {
-    char str_path[sp_path.length()] = {0};
-    // TODO:
-    strncpy(str_path, sp_path.beg()+1, sp_path.length()-1);
-    http_debug("%s\n", str_path);
-    return ReadFileData(str_path, read_size);
+char *ReadFileData(const strpair &sp_path, size_t *read_size, MemoryPool &pool) {
+    char t = *sp_path.end();
+    *(char*)sp_path.end() = '\0'; 
+
+    char *buff = ReadFileData(sp_path.beg()+1, read_size, pool);
+
+    *(char*)sp_path.end() = t;
+    return buff;
 }
 
 bool IsFileExist(const char *path) {

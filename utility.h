@@ -66,7 +66,7 @@ enum LogLevel {
 
 class strpair {
 public:
-    strpair(const char *beg = NULL, const char *end = NULL) : beg_(beg), end_(end) {}
+    // strpair(const char *beg = NULL, const char *end = NULL) : beg_(beg), end_(end) {}
 
     bool empty() const {
         return beg_ == end_;
@@ -147,17 +147,13 @@ private:
  */
 
 struct GlobalConfigure {
-    // The number of the process which handle the request
     size_t      workers,                    
-
                 max_request_header,
                 max_response_header,
-                log_level;
+                log_level,
+                memory_pool_size;
 
     FILE        *log_fp[8];
-
-    // The filename of the log file
-    strpair     log_filename[8];
     
     const char  *configure_text;
 };

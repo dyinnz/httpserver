@@ -89,11 +89,6 @@ void* MemoryPool::Allocate(size_t size) {
     }
 }
 
-template <class T> 
-T* MemoryPool::Allocate(size_t n) {
-    return (T*)Allocate(sizeof(T) * n);
-}
-
 /* Only free large memory */
 
 void MemoryPool::Free(void *p) {
